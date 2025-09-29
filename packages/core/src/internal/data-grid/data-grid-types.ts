@@ -517,7 +517,7 @@ export interface MarkerCell extends BaseGridCell {
     readonly drawHandle: boolean;
     readonly checked: boolean;
     readonly checkboxStyle: "square" | "circle";
-    readonly markerKind: "checkbox" | "number" | "both" | "checkbox-visible";
+    readonly markerKind: "checkbox" | "number" | "both" | "checkbox-visible" | "checkbox-invisible";
 }
 
 /** @category Selection */

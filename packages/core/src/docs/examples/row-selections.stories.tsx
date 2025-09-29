@@ -75,7 +75,7 @@ export const RowSelections: React.FC<RowSelectionsProps> = p => {
     },
     rowMarkersKind: {
         control: { type: "select" },
-        options: ["both", "checkbox", "number", "none", "clickable-number", "checkbox-visible"],
+        options: ["both", "checkbox", "number", "none", "clickable-number", "checkbox-visible", "checkbox-invisible"],
     },
     rowMarkersCheckboxStyle: {
         control: { type: "select" },

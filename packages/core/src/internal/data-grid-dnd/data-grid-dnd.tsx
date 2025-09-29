@@ -72,6 +72,12 @@ export interface DataGridDndProps extends Props {
         newSizeWithGrow: number
     ) => void;
 
+    /**
+     * Background color applied to the row while it is being dragged.
+     * @group Drag and Drop
+     */
+    readonly draggingRowColor?: string;
+
     readonly gridRef?: React.MutableRefObject<DataGridRef | null>;
     readonly maxColumnWidth: number;
     readonly minColumnWidth: number;
@@ -98,6 +104,11 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
     const [dropRow, setDropRow] = React.useState<number>();
     const [dragRowActive, setDragRowActive] = React.useState(false);
     const [dragStartY, setDragStartY] = React.useState<number>();
+    const [dropFlash, setDropFlash] = React.useState<{
+        row: number;
+        flashesLeft: number;
+        active: boolean;
+    }>();
 
     const {
         onHeaderMenuClick,
@@ -107,6 +118,7 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
         onColumnResize,
         onColumnResizeStart,
         onColumnResizeEnd,
+        getRowThemeOverride: getRowThemeOverrideProp,
         gridRef,
         maxColumnWidth,
         minColumnWidth,
@@ -118,6 +130,7 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
         onItemHovered,
         onDragStart,
         canvasRef,
+        draggingRowColor,
     } = p;
 
     const canResize = (onColumnResize ?? onColumnResizeEnd ?? onColumnResizeStart) !== undefined;
@@ -173,13 +186,26 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
                     row !== undefined &&
                     onRowMoved !== undefined
                 ) {
+                    setDropFlash(undefined);
                     setDragStartY(args.bounds.y);
                     setDragRow(row);
+                    setDropRow(Math.max(0, row));
                 }
             }
             onMouseDown?.(args);
         },
-        [onMouseDown, canResize, lockColumns, onRowMoved, gridRef, columns, canDragCol, onColumnResizeStart, canvasRef]
+        [
+            onMouseDown,
+            canResize,
+            lockColumns,
+            onRowMoved,
+            gridRef,
+            columns,
+            canDragCol,
+            onColumnResizeStart,
+            canvasRef,
+            setDropFlash,
+        ]
     );
 
     const onHeaderMenuClickMangled = React.useCallback(
@@ -212,11 +238,13 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
         setDragColActive(false);
         setResizeCol(undefined);
         setResizeColStartX(undefined);
-    }, []);
+        setDropFlash(undefined);
+    }, [setDropFlash]);
 
     const onMouseUpImpl = React.useCallback(
         (args: GridMouseEventArgs, isOutside: boolean) => {
             if (args.button === 0) {
+                const targetDropRow = dropRow;
                 if (resizeCol !== undefined) {
                     // if the column is in selection, the selection may contain extra cols, so lets just re-send the last
                     // resize event to all those columns.
@@ -255,8 +283,9 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
                 if (dragCol !== undefined && dropCol !== undefined && onColumnProposeMove?.(dragCol, dropCol) !== false) {
                     onColumnMoved?.(dragCol, dropCol);
                 }
-                if (dragRow !== undefined && dropRow !== undefined) {
-                    onRowMoved?.(dragRow, dropRow);
+                if (dragRow !== undefined && targetDropRow !== undefined && targetDropRow !== dragRow) {
+                    onRowMoved?.(dragRow, targetDropRow);
+                    setDropFlash({ row: targetDropRow, flashesLeft: 6, active: true });
                 }
             }
             onMouseUp?.(args, isOutside);
@@ -278,6 +307,7 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
             onRowMoved,
             clearAll,
             onColumnProposeMove,
+            setDropFlash,
         ]
     );
 
@@ -359,6 +389,35 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
         [dragRow, dropRow, getCellContent]
     );
 
+    const getRowThemeOverride = React.useMemo(() => {
+        if (draggingRowColor === undefined) {
+            return getRowThemeOverrideProp;
+        }
+
+        return (row: number) => {
+            const override = getRowThemeOverrideProp?.(row);
+            const isDraggingHighlight = dragRow !== undefined && dropRow !== undefined && row === dropRow;
+            const isDropFlashActive = dropFlash?.row === row && dropFlash.active;
+
+            if (isDraggingHighlight || isDropFlashActive) {
+                if (override === undefined) {
+                    return {
+                        bgCell: draggingRowColor,
+                        bgCellMedium: draggingRowColor,
+                    };
+                }
+
+                return {
+                    ...override,
+                    bgCell: draggingRowColor,
+                    bgCellMedium: draggingRowColor,
+                };
+            }
+
+            return override;
+        };
+    }, [draggingRowColor, dragRow, dropRow, dropFlash, getRowThemeOverrideProp]);
+
     const onDragStartImpl = React.useCallback<NonNullable<DataGridDndProps["onDragStart"]>>(
         args => {
             onDragStart?.(args);
@@ -368,6 +427,31 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
         },
         [clearAll, onDragStart]
     );
+
+    React.useEffect(() => {
+        if (dropFlash === undefined) return;
+        if (dropFlash.flashesLeft <= 0) {
+            setDropFlash(undefined);
+            return;
+        }
+
+        const handle = window.setTimeout(() => {
+            setDropFlash(current => {
+                if (current === undefined) return undefined;
+                if (current.flashesLeft <= 0) {
+                    return undefined;
+                }
+
+                return {
+                    row: current.row,
+                    flashesLeft: current.flashesLeft - 1,
+                    active: !current.active,
+                };
+            });
+        }, 160);
+
+        return () => window.clearTimeout(handle);
+    }, [dropFlash, setDropFlash]);
 
     return (
         <DataGrid
@@ -390,7 +474,6 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
             freezeColumns={p.freezeColumns}
             getCellRenderer={p.getCellRenderer}
             getGroupDetails={p.getGroupDetails}
-            getRowThemeOverride={p.getRowThemeOverride}
             groupHeaderHeight={p.groupHeaderHeight}
             headerHeight={p.headerHeight}
             headerIcons={p.headerIcons}
@@ -438,6 +521,7 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
             onMouseUp={onMouseUpImpl}
             dragAndDropState={dragOffset}
             onMouseMoveRaw={onMouseMove}
+            getRowThemeOverride={getRowThemeOverride}
             ref={gridRef}
         />
     );

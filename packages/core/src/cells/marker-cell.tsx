@@ -52,14 +52,30 @@ function drawMarkerRowCell(
     args: BaseDrawArgs,
     index: number,
     checked: boolean,
-    markerKind: "checkbox" | "both" | "number" | "checkbox-visible",
+    markerKind: "checkbox" | "both" | "number" | "checkbox-visible" | "checkbox-invisible",
     drawHandle: boolean,
     style: "circle" | "square"
 ) {
     const { ctx, rect, hoverAmount, theme } = args;
     const { x, y, width, height } = rect;
     const checkedboxAlpha = checked ? 1 : markerKind === "checkbox-visible" ? 0.6 + 0.4 * hoverAmount : hoverAmount;
-    if (markerKind !== "number" && checkedboxAlpha > 0) {
+
+    const drawHandleDots = () => {
+        ctx.beginPath();
+        for (const xOffset of [3, 6]) {
+            for (const yOffset of [-5, -1, 3]) {
+                ctx.rect(x + xOffset, y + height / 2 + yOffset, 2, 2);
+            }
+        }
+
+        ctx.fillStyle = theme.textLight;
+        ctx.fill();
+        ctx.beginPath();
+    };
+
+    const showCheckbox = markerKind !== "number" && markerKind !== "checkbox-invisible";
+
+    if (showCheckbox && checkedboxAlpha > 0) {
         ctx.globalAlpha = checkedboxAlpha;
         const offsetAmount = 7 * (checked ? hoverAmount : 1);
         drawCheckbox(
@@ -79,20 +95,17 @@ function drawMarkerRowCell(
         );
         if (drawHandle) {
             ctx.globalAlpha = hoverAmount;
-            ctx.beginPath();
-            for (const xOffset of [3, 6]) {
-                for (const yOffset of [-5, -1, 3]) {
-                    ctx.rect(x + xOffset, y + height / 2 + yOffset, 2, 2);
-                }
-            }
-
-            ctx.fillStyle = theme.textLight;
-            ctx.fill();
-            ctx.beginPath();
+            drawHandleDots();
         }
         ctx.globalAlpha = 1;
     }
-    if (markerKind === "number" || (markerKind === "both" && !checked)) {
+    if (!showCheckbox && drawHandle && hoverAmount > 0 && markerKind !== "number") {
+        ctx.globalAlpha = hoverAmount;
+        drawHandleDots();
+        ctx.globalAlpha = 1;
+    }
+
+    if (markerKind === "number" || markerKind === "checkbox-invisible" || (markerKind === "both" && !checked)) {
         const text = index.toString();
         const fontStyle = theme.markerFontFull;
 

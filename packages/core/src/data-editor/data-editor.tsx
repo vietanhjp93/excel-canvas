@@ -95,7 +95,7 @@ const DataGridOverlayEditor = React.lazy(
 let idCounter = 0;
 
 export interface RowMarkerOptions {
-    kind: "checkbox" | "number" | "clickable-number" | "checkbox-visible" | "both" | "none";
+    kind: "checkbox" | "number" | "clickable-number" | "checkbox-visible" | "checkbox-invisible" | "both" | "none";
     checkboxStyle?: "circle" | "square";
     startIndex?: number;
     width?: number;
@@ -322,6 +322,7 @@ export interface DataEditorProps extends Props, Pick<DataGridSearchProps, "image
      *
      * - "clickable-number" renders a number that can be clicked to
      *   select the row
+     * - "checkbox-invisible" keeps the row-reorder handle and index visible but hides the checkbox.
      * - "both" causes the row marker to show up as a number but
      *   reveal a checkbox when the marker is hovered.
      *
@@ -894,6 +895,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         smoothScrollX,
         smoothScrollY,
         scaleToRem = false,
+        draggingRowColor,
         rowHeight: rowHeightIn = 34,
         headerHeight: headerHeightIn = 36,
         groupHeaderHeight: groupHeaderHeightIn = headerHeightIn,
@@ -4298,6 +4300,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     onSearchResultsChanged={onSearchResultsChanged}
                     onVisibleRegionChanged={onVisibleRegionChangedImpl}
                     clientSize={clientSize}
+                    draggingRowColor={draggingRowColor}
                     rowHeight={rowHeight}
                     searchResults={searchResults}
                     searchValue={searchValue}

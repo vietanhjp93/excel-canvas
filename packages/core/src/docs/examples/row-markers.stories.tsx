@@ -66,7 +66,7 @@ export const RowMarkers: React.VFC<RowMarkersProps> = p => {
 (RowMarkers as any).argTypes = {
     markers: {
         control: { type: "select" },
-        options: ["both", "checkbox", "number", "none", "clickable-number", "checkbox-visible"],
+        options: ["both", "checkbox", "number", "none", "clickable-number", "checkbox-visible", "checkbox-invisible"],
     },
     headerDisabled: {
         control: { type: "boolean" },
