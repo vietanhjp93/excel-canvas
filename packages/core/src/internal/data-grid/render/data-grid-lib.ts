@@ -11,7 +11,7 @@ import {
 import { direction } from "../../../common/utils.js";
 import React from "react";
 import type { BaseDrawArgs, PrepResult } from "../../../cells/cell-types.js";
-import { split as splitText, clearCache } from "canvas-hypertxt";
+import { splitMultilineText as splitText, clearCache } from "./multi-line-split.js";
 import type { FullyDefined } from "../../../common/support.js";
 
 export interface MappedGridColumn extends FullyDefined<InnerGridColumn> {
