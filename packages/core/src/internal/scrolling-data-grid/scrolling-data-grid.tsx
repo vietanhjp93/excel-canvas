@@ -1,6 +1,7 @@
 import * as React from "react";
 import DataGridDnd, { type DataGridDndProps } from "../data-grid-dnd/data-grid-dnd.js";
 import type { Rectangle } from "../data-grid/data-grid-types.js";
+import type { RowMarkerEdgeHover } from "../data-grid/row-marker-edge.js";
 import { InfiniteScroller } from "./infinite-scroller.js";
 
 type Props = Omit<DataGridDndProps, "width" | "height" | "eventTargetRef">;
@@ -67,6 +68,7 @@ export interface ScrollingDataGridProps extends Props {
     readonly rightElement: React.ReactNode | undefined;
     readonly clientSize: readonly [number, number, number]; // [width, height, rightElSize]
     readonly nonGrowWidth: number;
+    readonly rowInsertEdge?: RowMarkerEdgeHover;
 }
 
 const GridScroller: React.FunctionComponent<ScrollingDataGridProps> = p => {
@@ -335,7 +337,9 @@ const GridScroller: React.FunctionComponent<ScrollingDataGridProps> = p => {
                 onKeyUp={p.onKeyUp}
                 onMouseDown={p.onMouseDown}
                 onMouseUp={p.onMouseUp}
+                onRowMarkerEdgeMouseDown={p.onRowMarkerEdgeMouseDown}
                 draggingRowColor={p.draggingRowColor}
+                rowInsertEdge={p.rowInsertEdge}
                 onRowMoved={p.onRowMoved}
                 smoothScrollX={p.smoothScrollX}
                 smoothScrollY={p.smoothScrollY}

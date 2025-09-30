@@ -11,7 +11,15 @@ export const markerCellRenderer: InternalCellRenderer<MarkerCell> = {
     drawPrep: prepMarkerRowCell,
     measure: () => 44,
     draw: a =>
-        drawMarkerRowCell(a, a.cell.row, a.cell.checked, a.cell.markerKind, a.cell.drawHandle, a.cell.checkboxStyle),
+        drawMarkerRowCell(
+            a,
+            a.cell.row,
+            a.cell.checked,
+            a.cell.markerKind,
+            a.cell.drawHandle,
+            a.cell.checkboxStyle,
+            a.cell.edgeHover
+        ),
     onClick: e => {
         const { bounds, cell, posX: x, posY: y } = e;
         const { width, height } = bounds;
@@ -54,7 +62,8 @@ function drawMarkerRowCell(
     checked: boolean,
     markerKind: "checkbox" | "both" | "number" | "checkbox-visible" | "checkbox-invisible",
     drawHandle: boolean,
-    style: "circle" | "square"
+    style: "circle" | "square",
+    edgeHover: "top" | "bottom" | undefined
 ) {
     const { ctx, rect, hoverAmount, theme } = args;
     const { x, y, width, height } = rect;
@@ -119,5 +128,14 @@ function drawMarkerRowCell(
         if (hoverAmount !== 0) {
             ctx.globalAlpha = 1;
         }
+    }
+
+    if (edgeHover !== undefined) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = theme.accentColor;
+        const lineHeight = 1.5;
+        const centerY = edgeHover === "top" ? y : y + height;
+        const lineY = Math.round(centerY - lineHeight / 2);
+        ctx.fillRect(x, lineY, width, lineHeight);
     }
 }

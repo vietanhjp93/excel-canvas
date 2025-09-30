@@ -38,6 +38,7 @@ import { RenderStateProvider, packColRowToNumber } from "../../common/render-sta
 import { browserIsFirefox, browserIsSafari } from "../../common/browser-detect.js";
 import { type EnqueueCallback, useAnimationQueue } from "./use-animation-queue.js";
 import { assert } from "../../common/support.js";
+import type { RowMarkerEdgeHover } from "./row-marker-edge.js";
 import type { CellRenderer, GetCellRendererCallback } from "../../cells/cell-types.js";
 import type { DrawGridArg } from "./render/draw-grid-arg.js";
 import type { ImageWindowLoader } from "./image-window-loader-interface.js";
@@ -148,6 +149,8 @@ export interface DataGridProps {
      * @group Editing
      */
     readonly fillHandle: FillHandle | undefined;
+
+    readonly rowInsertEdge?: RowMarkerEdgeHover;
 
     readonly disabledRows: CompactSelection | undefined;
     /**
@@ -400,6 +403,7 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
         experimental,
         getCellRenderer,
         resizeIndicator = "full",
+        rowInsertEdge,
     } = p;
     const translateX = p.translateX ?? 0;
     const translateY = p.translateY ?? 0;
@@ -847,6 +851,7 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
             getCellRenderer,
             minimumCellWidth,
             resizeIndicator,
+            rowInsertEdge,
         };
 
         // This confusing bit of code due to some poor design. Long story short, the damage property is only used
@@ -913,6 +918,7 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
         getCellRenderer,
         minimumCellWidth,
         resizeIndicator,
+        rowInsertEdge,
     ]);
 
     const lastDrawRef = React.useRef(draw);

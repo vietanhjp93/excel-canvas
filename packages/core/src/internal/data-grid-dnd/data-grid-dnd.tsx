@@ -3,7 +3,8 @@ import clamp from "lodash/clamp.js";
 import * as React from "react";
 import DataGrid, { type DataGridProps, type DataGridRef } from "../data-grid/data-grid.js";
 import type { GridColumn, InnerGridColumn, Rectangle } from "../data-grid/data-grid-types.js";
-import type { GridMouseEventArgs } from "../data-grid/event-args.js";
+import type { GridMouseCellEventArgs, GridMouseEventArgs } from "../data-grid/event-args.js";
+import { getRowMarkerEdgeHover, type RowMarkerEdgeHover } from "../data-grid/row-marker-edge.js";
 
 type Props = Omit<
     DataGridProps,
@@ -78,6 +79,14 @@ export interface DataGridDndProps extends Props {
      */
     readonly draggingRowColor?: string;
 
+    /**
+     * Called when the user clicks the row marker edge between two rows. Return `false` to allow normal processing.
+     */
+    readonly onRowMarkerEdgeMouseDown?: (
+        edge: RowMarkerEdgeHover,
+        event: GridMouseCellEventArgs
+    ) => boolean | void;
+
     readonly gridRef?: React.MutableRefObject<DataGridRef | null>;
     readonly maxColumnWidth: number;
     readonly minColumnWidth: number;
@@ -131,12 +140,17 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
         onDragStart,
         canvasRef,
         draggingRowColor,
+        onRowMarkerEdgeMouseDown,
     } = p;
 
     const canResize = (onColumnResize ?? onColumnResizeEnd ?? onColumnResizeStart) !== undefined;
 
     const { columns, selection } = p;
     const selectedColumns = selection.columns;
+    const dataRowCount = React.useMemo(
+        () => Math.max(0, p.rows - (p.hasAppendRow ? 1 : 0)),
+        [p.hasAppendRow, p.rows]
+    );
 
     const onItemHoveredImpl = React.useCallback(
         (args: GridMouseEventArgs) => {
@@ -160,6 +174,15 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
         (args: GridMouseEventArgs) => {
             if (args.button === 0) {
                 const [col, row] = args.location;
+                if (onRowMarkerEdgeMouseDown !== undefined && args.kind === "cell") {
+                    const edge = getRowMarkerEdgeHover(args, dataRowCount);
+                    if (edge !== undefined) {
+                        const handled = onRowMarkerEdgeMouseDown(edge, args);
+                        if (handled !== false) {
+                            return;
+                        }
+                    }
+                }
                 if (args.kind === "out-of-bounds" && args.isEdge && canResize) {
                     const bounds = gridRef?.current?.getBounds(columns.length - 1, -1);
                     if (bounds !== undefined) {
@@ -204,6 +227,8 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
             canDragCol,
             onColumnResizeStart,
             canvasRef,
+            onRowMarkerEdgeMouseDown,
+            dataRowCount,
             setDropFlash,
         ]
     );
@@ -507,6 +532,7 @@ const DataGridDnd: React.FunctionComponent<DataGridDndProps> = p => {
             translateX={p.translateX}
             translateY={p.translateY}
             resizeIndicator={p.resizeIndicator}
+            rowInsertEdge={p.rowInsertEdge}
             verticalBorder={p.verticalBorder}
             width={p.width}
             getCellContent={getMangledCellContent}

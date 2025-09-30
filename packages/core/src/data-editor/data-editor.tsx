@@ -819,6 +819,26 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     const [rowMarkerEdgeHover, setRowMarkerEdgeHover] = React.useState<RowMarkerEdgeHover>();
     const lastSent = React.useRef<[number, number]>();
 
+    const prevRowMarkerEdgeHover = React.useRef<RowMarkerEdgeHover | undefined>();
+    React.useEffect(() => {
+        const prev = prevRowMarkerEdgeHover.current;
+        const next = rowMarkerEdgeHover;
+        prevRowMarkerEdgeHover.current = next;
+
+        if (prev?.row === next?.row) return;
+
+        const damage: { cell: Item }[] = [];
+        if (prev !== undefined) {
+            damage.push({ cell: [0, prev.row] });
+        }
+        if (next !== undefined) {
+            damage.push({ cell: [0, next.row] });
+        }
+        if (damage.length > 0) {
+            gridRef.current?.damage(damage);
+        }
+    }, [rowMarkerEdgeHover]);
+
     const safeWindow = typeof window === "undefined" ? null : window;
 
     const {
@@ -4334,6 +4354,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     onDragLeave={onDragLeave}
                     onRowMoved={onRowMoved}
                     onRowMarkerEdgeMouseDown={handleRowMarkerEdgeMouseDown}
+                    rowInsertEdge={rowMarkerEdgeHover}
                     overscrollX={overscrollX}
                     overscrollY={overscrollY}
                     preventDiagonalScrolling={preventDiagonalScrolling}

@@ -166,6 +166,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
         damage,
         minimumCellWidth,
         resizeIndicator,
+        rowInsertEdge,
     } = arg;
     if (width === 0 || height === 0) return;
     const doubleBuffer = renderStrategy === "double-buffer";
@@ -406,6 +407,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
                 ctx,
                 effectiveCols,
                 mappedColumns,
+                width,
                 height,
                 totalHeaderHeight,
                 translateX,
@@ -437,7 +439,8 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
                 renderStateProvider,
                 getCellRenderer,
                 overrideCursor,
-                minimumCellWidth
+                minimumCellWidth,
+                rowInsertEdge
             );
 
             const selectionCurrent = selection.current;
@@ -625,6 +628,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
         targetCtx,
         effectiveCols,
         mappedColumns,
+        width,
         height,
         totalHeaderHeight,
         translateX,
@@ -656,7 +660,8 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
         renderStateProvider,
         getCellRenderer,
         overrideCursor,
-        minimumCellWidth
+        minimumCellWidth,
+        rowInsertEdge
     );
 
     drawBlanks(

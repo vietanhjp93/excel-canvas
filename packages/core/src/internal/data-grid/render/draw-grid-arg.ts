@@ -18,7 +18,12 @@ import type {
 import type { CellSet } from "../cell-set.js";
 import type { EnqueueCallback } from "../use-animation-queue.js";
 import type { ImageWindowLoader } from "../image-window-loader-interface.js";
-import type { GroupDetailsCallback, GetRowThemeCallback, Highlight } from "./data-grid-render.cells.js";
+import type {
+    GroupDetailsCallback,
+    GetRowThemeCallback,
+    Highlight,
+} from "./data-grid-render.cells.js";
+import type { RowMarkerEdgeHover } from "../row-marker-edge.js";
 
 export type HoverInfo = readonly [Item, readonly [number, number]];
 
@@ -80,4 +85,5 @@ export interface DrawGridArg {
     readonly getCellRenderer: GetCellRendererCallback;
     readonly minimumCellWidth: number;
     readonly resizeIndicator: "full" | "header" | "none";
+    readonly rowInsertEdge?: RowMarkerEdgeHover;
 }

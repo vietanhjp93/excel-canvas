@@ -33,6 +33,7 @@ import type { ImageWindowLoader } from "../image-window-loader-interface.js";
 import { intersectRect } from "../../../common/math.js";
 import type { GridMouseGroupHeaderEventArgs } from "../event-args.js";
 import { getSkipPoint, getSpanBounds, walkColumns, walkRowsInCol } from "./data-grid-render.walk.js";
+import type { RowMarkerEdgeHover } from "../row-marker-edge.js";
 
 const loadingCell: InnerGridCell = {
     kind: GridCellKind.Loading,
@@ -76,6 +77,7 @@ export function drawCells(
     ctx: CanvasRenderingContext2D,
     effectiveColumns: readonly MappedGridColumn[],
     allColumns: readonly MappedGridColumn[],
+    width: number,
     height: number,
     totalHeaderHeight: number,
     translateX: number,
@@ -107,7 +109,8 @@ export function drawCells(
     renderStateProvider: RenderStateProvider,
     getCellRenderer: GetCellRendererCallback,
     overrideCursor: (cursor: React.CSSProperties["cursor"]) => void,
-    minimumCellWidth: number
+    minimumCellWidth: number,
+    rowInsertEdge: RowMarkerEdgeHover | undefined
 ): Rectangle[] | undefined {
     let toDraw = damage?.size ?? Number.MAX_SAFE_INTEGER;
     const frameTime = performance.now();
@@ -119,6 +122,9 @@ export function drawCells(
         freezeTrailingRows > 0 ? getFreezeTrailingHeight(rows, freezeTrailingRows, getRowHeight) : 0;
     let result: Rectangle[] | undefined;
     let handledSpans: Set<string> | undefined = undefined;
+
+    let insertTop: number | undefined;
+    let insertBottom: number | undefined;
 
     const skipPoint = getSkipPoint(drawRegions);
 
@@ -270,6 +276,12 @@ export function drawCells(
                         cell.themeOverride === undefined && rowTheme === undefined && trailingTheme === undefined
                             ? colTheme
                             : mergeAndRealizeTheme(colTheme, rowTheme, trailingTheme, cell.themeOverride); //alloc
+
+                    if (rowInsertEdge !== undefined && row === rowInsertEdge.row) {
+                        insertTop = insertTop === undefined ? drawY : Math.min(insertTop, drawY);
+                        const bottom = drawY + rh;
+                        insertBottom = insertBottom === undefined ? bottom : Math.max(insertBottom, bottom);
+                    }
 
                     ctx.beginPath();
 
@@ -452,6 +464,25 @@ export function drawCells(
             return toDraw <= 0;
         }
     );
+
+    if (rowInsertEdge !== undefined) {
+        const referenceY = rowInsertEdge.position === "top" ? insertTop : insertBottom;
+        if (referenceY !== undefined) {
+            const thickness = 3;
+            const clipTop = totalHeaderHeight + 1;
+            const usableHeight = height - clipTop;
+            const centeredY = referenceY - thickness / 2;
+            const clampedY = Math.min(clipTop + usableHeight - thickness, Math.max(clipTop, centeredY));
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, clipTop, width, usableHeight);
+            ctx.clip();
+            ctx.fillStyle = outerTheme.accentColor;
+            ctx.fillRect(0, clampedY, width, thickness);
+            ctx.restore();
+        }
+    }
+
     return result;
 }
 

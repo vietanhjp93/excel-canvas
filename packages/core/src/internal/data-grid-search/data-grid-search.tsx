@@ -10,6 +10,7 @@ import {
 import ScrollingDataGrid, { type ScrollingDataGridProps } from "../scrolling-data-grid/scrolling-data-grid.js";
 import { SearchWrapper } from "./data-grid-search-style.js";
 import { assert } from "../../common/support.js";
+import type { RowMarkerEdgeHover } from "../data-grid/row-marker-edge.js";
 
 // icons
 const upArrow = (
@@ -86,6 +87,7 @@ export interface DataGridSearchProps extends Omit<ScrollingDataGridProps, "preli
      */
     readonly onSearchValueChange?: (newVal: string) => void;
     readonly searchInputRef: React.MutableRefObject<HTMLInputElement | null>;
+    readonly rowInsertEdge?: RowMarkerEdgeHover;
 }
 
 const targetSearchTimeMS = 10;
@@ -563,7 +565,9 @@ const DataGridSearch: React.FunctionComponent<DataGridSearchProps> = p => {
                 onKeyUp={p.onKeyUp}
                 onMouseDown={p.onMouseDown}
                 onMouseUp={p.onMouseUp}
+                onRowMarkerEdgeMouseDown={p.onRowMarkerEdgeMouseDown}
                 draggingRowColor={p.draggingRowColor}
+                rowInsertEdge={p.rowInsertEdge}
                 onRowMoved={p.onRowMoved}
                 smoothScrollX={p.smoothScrollX}
                 smoothScrollY={p.smoothScrollY}
