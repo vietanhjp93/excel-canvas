@@ -38,6 +38,7 @@ export const SelectionSerialization: React.VFC = () => {
                 };
             }
         } catch (error) {
+            // eslint-disable-next-line no-console
             console.error("Failed to restore selection", error);
         }
         return {
@@ -134,6 +135,7 @@ export const SelectionRoundTrip: React.VFC = () => {
         
         // Simulate persistence (e.g., sending to server, storing in database)
         const jsonString = JSON.stringify(serialized);
+        // eslint-disable-next-line no-console
         console.log("Serialized selection:", jsonString);
         
         // Deserialize and restore
