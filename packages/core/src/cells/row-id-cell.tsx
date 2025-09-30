@@ -23,6 +23,7 @@ export const rowIDCellRenderer: InternalCellRenderer<RowIDCell> = {
                 disabled={value.readonly !== false}
                 value={value.data}
                 validatedSelection={validatedSelection}
+                contentAlign={value.contentAlign}
                 onChange={e =>
                     onChange({
                         ...value,

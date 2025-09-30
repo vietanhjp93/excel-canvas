@@ -1,6 +1,6 @@
 import { styled } from "@linaria/react";
 
-export const InputBox = styled.textarea`
+export const InputBox = styled.textarea<{ contentAlign?: "left" | "right" | "center" }>`
     position: absolute;
     left: 0;
     right: 0;
@@ -30,13 +30,15 @@ export const InputBox = styled.textarea`
     padding: 0;
     margin: 0;
 
+    text-align: ${p => p.contentAlign ?? "left"};
+
     .gdg-invalid & {
         text-decoration: underline;
         text-decoration-color: #d60606;
     }
 `;
 
-export const ShadowBox = styled.div`
+export const ShadowBox = styled.div<{ contentAlign?: "left" | "right" | "center" }>`
     visibility: hidden;
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -52,6 +54,8 @@ export const ShadowBox = styled.div`
     color: var(--gdg-text-dark);
     padding: 0;
     margin: 0;
+
+    text-align: ${p => p.contentAlign ?? "left"};
 
     padding-bottom: 2px;
 `;

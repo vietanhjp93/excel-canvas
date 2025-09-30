@@ -47,6 +47,7 @@ export const textCellRenderer: InternalCellRenderer<TextCell> = {
                     altNewline={true}
                     value={value.data}
                     validatedSelection={validatedSelection}
+                    contentAlign={value.contentAlign}
                     onChange={e =>
                         onChange({
                             ...value,

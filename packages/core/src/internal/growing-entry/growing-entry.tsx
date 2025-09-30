@@ -11,6 +11,7 @@ interface Props
     readonly altNewline?: boolean;
     readonly validatedSelection?: SelectionRange;
     readonly selectionBehavior?: EditSelectionBehavior;
+    readonly contentAlign?: "left" | "right" | "center";
 }
 
 let globalInputID = 0;
@@ -25,6 +26,7 @@ export const GrowingEntry: React.FunctionComponent<Props> = (props: Props) => {
         altNewline,
         validatedSelection,
         selectionBehavior = "select-all",
+        contentAlign,
         ...rest
     } = props;
     const { onChange, className } = rest;
@@ -86,7 +88,9 @@ export const GrowingEntry: React.FunctionComponent<Props> = (props: Props) => {
 
     return (
         <GrowingEntryStyle className="gdg-growing-entry">
-            <ShadowBox className={className}>{useText + "\n"}</ShadowBox>
+            <ShadowBox className={className} contentAlign={contentAlign}>
+                {useText + "\n"}
+            </ShadowBox>
             <InputBox
                 {...rest}
                 className={(className ?? "") + " gdg-input"}
@@ -96,6 +100,7 @@ export const GrowingEntry: React.FunctionComponent<Props> = (props: Props) => {
                 value={useText}
                 placeholder={placeholder}
                 dir="auto"
+                contentAlign={contentAlign}
             />
         </GrowingEntryStyle>
     );
