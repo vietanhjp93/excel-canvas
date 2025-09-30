@@ -52,7 +52,9 @@ import {
     itemIsInRect,
     gridSelectionHasItem,
     getFreezeTrailingHeight,
+    getEmHeight,
 } from "../internal/data-grid/render/data-grid-lib.js";
+import { splitMultilineText } from "../internal/data-grid/render/multi-line-split.js";
 import {
     getRowMarkerEdgeHover,
     type RowMarkerEdgeHover,
@@ -91,6 +93,8 @@ import { useRowGroupingInner, type RowGroupingOptions } from "./row-grouping.js"
 import { useRowGrouping } from "./row-grouping-api.js";
 import { useInitialScrollOffset } from "./use-initial-scroll-offset.js";
 import type { VisibleRegion } from "./visible-region.js";
+import { isHistoryDiffCell } from "../cells/history-diff-cell.js";
+import type { HistoryDiffCell } from "../cells/history-diff-cell.js";
 
 const DataGridOverlayEditor = React.lazy(
     async () => await import("../internal/data-grid-overlay-editor/data-grid-overlay-editor.js")
@@ -444,6 +448,11 @@ export interface DataEditorProps extends Props, Pick<DataGridSearchProps, "image
      * @defaultValue 34
      */
     readonly rowHeight?: DataGridSearchProps["rowHeight"];
+    /** Automatically measures visible rows and grows their height to fit wrapped content.
+     * @group Style
+     * @defaultValue false
+     */
+    readonly autoRowHeight?: boolean;
     /** Fires whenever the mouse moves
      * @group Events
      * @param args
@@ -949,6 +958,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         scaleToRem = false,
         draggingRowColor,
         rowHeight: rowHeightIn = 34,
+        autoRowHeight = false,
         headerHeight: headerHeightIn = 36,
         groupHeaderHeight: groupHeaderHeightIn = headerHeightIn,
         theme: themeIn,
@@ -1000,6 +1010,23 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         scaleToRem,
         theme: themeIn,
     });
+
+    const baseRowHeight = React.useCallback(
+        (row: number) => (typeof rowHeight === "number" ? rowHeight : rowHeight(row)),
+        [rowHeight]
+    );
+
+    const measurementCtxRef = React.useRef<CanvasRenderingContext2D | null>(null);
+    React.useEffect(() => {
+        if (!autoRowHeight) return;
+        if (measurementCtxRef.current === null && typeof document !== "undefined") {
+            const canvas = document.createElement("canvas");
+            measurementCtxRef.current = canvas.getContext("2d");
+        }
+    }, [autoRowHeight]);
+
+    const rowHeightsRef = React.useRef<Map<number, number>>(new Map());
+    const [rowHeightsRevision, setRowHeightsRevision] = React.useState(0);
 
     const keybindings = useKeybindingsWithDefaults(keybindingsIn);
 
@@ -1264,26 +1291,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
     const mangledRows = showTrailingBlankRow ? rows + 1 : rows;
 
-    const mangledOnCellsEdited = React.useCallback<NonNullable<typeof onCellsEdited>>(
-        (items: readonly EditListItem[]) => {
-            const mangledItems =
-                rowMarkerOffset === 0
-                    ? items
-                    : items.map(x => ({
-                          ...x,
-                          location: [x.location[0] - rowMarkerOffset, x.location[1]] as const,
-                      }));
-            const r = onCellsEdited?.(mangledItems);
-
-            if (r !== true) {
-                for (const i of mangledItems) onCellEdited?.(i.location, i.value);
-            }
-
-            return r;
-        },
-        [onCellEdited, onCellsEdited, rowMarkerOffset]
-    );
-
     const [fillHighlightRegion, setFillHighlightRegion] = React.useState<Rectangle | undefined>();
 
     // this will generally be undefined triggering the memo less often
@@ -1464,6 +1471,288 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             experimental?.strict,
             getCellContent,
         ]
+    );
+
+    const computeTextCellHeight = React.useCallback(
+        (
+            ctx: CanvasRenderingContext2D,
+            text: string,
+            allowWrapping: boolean,
+            availableWidth: number,
+            emHeight: number,
+            lineGap: number
+        ): number => {
+            const padding = mergedTheme.cellVerticalPadding * 2;
+            if (!allowWrapping || availableWidth <= 0) {
+                const lines = text.split(/\r?\n/);
+                const count = Math.max(1, lines.length);
+                const textHeight = emHeight + lineGap * (count - 1);
+                return textHeight + padding;
+            }
+
+            const lines = splitMultilineText(ctx, text, mergedTheme.baseFontFull, availableWidth, false);
+            const count = Math.max(1, lines.length);
+            const textHeight = emHeight + lineGap * (count - 1);
+            return textHeight + padding;
+        },
+        [mergedTheme]
+    );
+
+    const computeHistoryDiffCellHeight = React.useCallback(
+        (
+            ctx: CanvasRenderingContext2D,
+            cell: HistoryDiffCell,
+            availableWidth: number,
+            emHeight: number,
+            lineGap: number
+        ): number => {
+            const padding = mergedTheme.cellVerticalPadding * 2;
+            if (availableWidth <= 0) {
+                return padding + emHeight;
+            }
+
+            if (cell.data.layout === "inline") {
+                const inlineText = cell.data.primary.map(seg => seg.text).join("");
+                return computeTextCellHeight(ctx, inlineText, false, availableWidth, emHeight, lineGap);
+            }
+
+            const primaryText = cell.data.primary.map(seg => seg.text).join("");
+            const primaryLines = splitMultilineText(ctx, primaryText, mergedTheme.baseFontFull, availableWidth, false);
+            const primaryCount = Math.max(1, primaryLines.length);
+            const primaryHeight = emHeight + lineGap * (primaryCount - 1);
+
+            let totalHeight = primaryHeight;
+            if (cell.data.secondary !== undefined && cell.data.secondary.length > 0) {
+                const secondaryText = cell.data.secondary.map(seg => seg.text).join("");
+                const secondaryLines = splitMultilineText(
+                    ctx,
+                    secondaryText,
+                    mergedTheme.baseFontFull,
+                    availableWidth,
+                    false
+                );
+                const secondaryCount = Math.max(1, secondaryLines.length);
+                const secondaryHeight = emHeight + lineGap * (secondaryCount - 1);
+                totalHeight += secondaryHeight + mergedTheme.cellVerticalPadding;
+            }
+
+            return totalHeight + padding;
+        },
+        [computeTextCellHeight, mergedTheme]
+    );
+
+    const measureRowHeight = React.useCallback(
+        (row: number): number => {
+            if (!autoRowHeight) {
+                return baseRowHeight(row);
+            }
+            if (row < 0 || row >= rows) {
+                return baseRowHeight(row);
+            }
+            const ctx = measurementCtxRef.current;
+            if (ctx === null) {
+                return baseRowHeight(row);
+            }
+
+            ctx.save();
+            ctx.font = mergedTheme.baseFontFull;
+            const emHeight = getEmHeight(ctx, mergedTheme.baseFontFull);
+            const rawLineGap = mergedTheme.lineHeight * emHeight;
+            const lineGap = Number.isFinite(rawLineGap) && rawLineGap > 0 ? rawLineGap : emHeight;
+
+            let maxHeight = baseRowHeight(row);
+            const processedSpans = new Set<string>();
+
+            for (let col = rowMarkerOffset; col < mangledCols.length; col++) {
+                const column = mangledCols[col];
+                const cell = getMangledCellContent([col, row], true);
+
+                if (cell.kind === InnerGridCellKind.Marker || cell.kind === InnerGridCellKind.NewRow) {
+                    continue;
+                }
+
+                if (cell.kind === GridCellKind.Loading) {
+                    continue;
+                }
+
+                if (cell.span !== undefined) {
+                    const spanKey = `${row}-${cell.span[0]}-${cell.span[1]}`;
+                    if (processedSpans.has(spanKey)) {
+                        continue;
+                    }
+                    processedSpans.add(spanKey);
+                    const firstCol = cell.span[0] + rowMarkerOffset;
+                    if (col !== firstCol) {
+                        continue;
+                    }
+                }
+
+                const spanWidth = (() => {
+                    if (cell.span === undefined) {
+                        return column.width;
+                    }
+                    let total = 0;
+                    const start = cell.span[0] + rowMarkerOffset;
+                    const end = cell.span[1] + rowMarkerOffset;
+                    for (let c = start; c <= end && c < mangledCols.length; c++) {
+                        total += mangledCols[c].width;
+                    }
+                    return total;
+                })();
+
+                const availableWidth = Math.max(0, spanWidth - mergedTheme.cellHorizontalPadding * 2);
+
+                let estimatedHeight = maxHeight;
+                switch (cell.kind) {
+                    case GridCellKind.Text: {
+                        const display = cell.displayData ?? cell.data ?? "";
+                        estimatedHeight = computeTextCellHeight(
+                            ctx,
+                            display,
+                            cell.allowWrapping === true,
+                            availableWidth,
+                            emHeight,
+                            lineGap
+                        );
+                        break;
+                    }
+                    case GridCellKind.Number: {
+                        const display = cell.displayData ?? (cell.data !== undefined ? String(cell.data) : "");
+                        estimatedHeight = computeTextCellHeight(
+                            ctx,
+                            display,
+                            false,
+                            availableWidth,
+                            emHeight,
+                            lineGap
+                        );
+                        break;
+                    }
+                    case GridCellKind.RowID:
+                    case GridCellKind.Markdown:
+                    case GridCellKind.Uri: {
+                        const content = (cell as { displayData?: string; data?: string }).displayData ??
+                            (cell as { data?: string }).data ??
+                            "";
+                        const allowWrapping = (cell as { allowWrapping?: boolean }).allowWrapping === true;
+                        estimatedHeight = computeTextCellHeight(
+                            ctx,
+                            content,
+                            allowWrapping,
+                            availableWidth,
+                            emHeight,
+                            lineGap
+                        );
+                        break;
+                    }
+                    case GridCellKind.Custom: {
+                        const gridCell = cell as GridCell;
+                        if (isHistoryDiffCell(gridCell)) {
+                            estimatedHeight = computeHistoryDiffCellHeight(
+                                ctx,
+                                gridCell as HistoryDiffCell,
+                                availableWidth,
+                                emHeight,
+                                lineGap
+                            );
+                        }
+                        break;
+                    }
+                    default:
+                        break;
+                }
+
+                if (estimatedHeight > maxHeight) {
+                    maxHeight = estimatedHeight;
+                }
+            }
+
+            ctx.restore();
+            return maxHeight;
+        },
+        [
+            autoRowHeight,
+            baseRowHeight,
+            computeHistoryDiffCellHeight,
+            computeTextCellHeight,
+            getMangledCellContent,
+            mangledCols,
+            mergedTheme,
+            rowMarkerOffset,
+            rows,
+        ]
+    );
+
+    const ensureRowHeight = React.useCallback(
+        (row: number) => {
+            if (!autoRowHeight) return;
+            const next = measureRowHeight(row);
+            const current = rowHeightsRef.current.get(row);
+            if (current === undefined || Math.abs(current - next) > 0.5) {
+                rowHeightsRef.current.set(row, next);
+                setRowHeightsRevision(rev => rev + 1);
+            }
+        },
+        [autoRowHeight, measureRowHeight]
+    );
+
+    const measureRowsInRange = React.useCallback(
+        (start: number, end: number) => {
+            if (!autoRowHeight) return;
+            const max = Math.min(rows, end);
+            for (let r = start; r < max; r++) {
+                ensureRowHeight(r);
+            }
+        },
+        [autoRowHeight, ensureRowHeight, rows]
+    );
+
+    React.useEffect(() => {
+        if (!autoRowHeight) {
+            rowHeightsRef.current.clear();
+            setRowHeightsRevision(rev => rev + 1);
+            return;
+        }
+
+        rowHeightsRef.current.clear();
+        setRowHeightsRevision(rev => rev + 1);
+        const region = visibleRegionRef.current;
+        if (region !== undefined) {
+            measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
+        }
+    }, [autoRowHeight, baseRowHeight, measureRowsInRange, rows, mangledCols, mergedTheme]);
+
+    const effectiveRowHeight = React.useMemo(() => {
+        if (!autoRowHeight) {
+            return rowHeight;
+        }
+        return (rowIndex: number) => rowHeightsRef.current.get(rowIndex) ?? baseRowHeight(rowIndex);
+    }, [autoRowHeight, baseRowHeight, rowHeight, rowHeightsRevision]);
+
+    const mangledOnCellsEdited = React.useCallback<NonNullable<typeof onCellsEdited>>(
+        (items: readonly EditListItem[]) => {
+            const mangledItems =
+                rowMarkerOffset === 0
+                    ? items
+                    : items.map(x => ({
+                          ...x,
+                          location: [x.location[0] - rowMarkerOffset, x.location[1]] as const,
+                      }));
+            const r = onCellsEdited?.(mangledItems);
+
+            if (r !== true) {
+                for (const i of mangledItems) onCellEdited?.(i.location, i.value);
+            }
+
+            if (autoRowHeight) {
+                for (const i of mangledItems) {
+                    ensureRowHeight(i.location[1]);
+                }
+            }
+
+            return r;
+        },
+        [autoRowHeight, ensureRowHeight, onCellEdited, onCellsEdited, rowMarkerOffset]
     );
 
     const mangledGetGroupDetails = React.useCallback<NonNullable<DataEditorProps["getGroupDetails"]>>(
@@ -2760,6 +3049,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             visibleRegionRef.current = newRegion;
             setVisibleRegion(newRegion);
             setClientSize([clientWidth, clientHeight, rightElWidth]);
+            if (autoRowHeight) {
+                measureRowsInRange(newRegion.y, Math.min(rows, newRegion.y + newRegion.height + 1));
+            }
             onVisibleRegionChanged?.(newRegion, newRegion.tx, newRegion.ty, newRegion.extras);
         },
         [
@@ -2770,6 +3062,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             freezeColumns,
             freezeTrailingRows,
             setVisibleRegion,
+            autoRowHeight,
+            measureRowsInRange,
             onVisibleRegionChanged,
         ]
     );
@@ -4308,13 +4602,13 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         let h: number;
         const scrollbarWidth = experimental?.scrollbarWidthOverride ?? getScrollBarWidth();
         const rowsCountWithTrailingRow = rows + (showTrailingBlankRow ? 1 : 0);
-        if (typeof rowHeight === "number") {
-            h = totalHeaderHeight + rowsCountWithTrailingRow * rowHeight;
+        if (typeof effectiveRowHeight === "number") {
+            h = totalHeaderHeight + rowsCountWithTrailingRow * effectiveRowHeight;
         } else {
             let avg = 0;
             const toAverage = Math.min(rowsCountWithTrailingRow, 10);
             for (let i = 0; i < toAverage; i++) {
-                avg += rowHeight(i);
+                avg += effectiveRowHeight(i);
             }
             avg = Math.floor(avg / toAverage);
 
@@ -4327,7 +4621,14 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         // We need to set a reasonable cap here as some browsers will just ignore huge values
         // rather than treat them as huge values.
         return [`${Math.min(100_000, w)}px`, `${Math.min(100_000, h)}px`];
-    }, [mangledCols, experimental?.scrollbarWidthOverride, rowHeight, rows, showTrailingBlankRow, totalHeaderHeight]);
+    }, [
+        effectiveRowHeight,
+        mangledCols,
+        experimental?.scrollbarWidthOverride,
+        rows,
+        showTrailingBlankRow,
+        totalHeaderHeight,
+    ]);
 
     const cssStyle = React.useMemo(() => {
         return makeCSSStyle(mergedTheme);
@@ -4419,7 +4720,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     onVisibleRegionChanged={onVisibleRegionChangedImpl}
                     clientSize={clientSize}
                     draggingRowColor={draggingRowColor}
-                    rowHeight={rowHeight}
+                    rowHeight={effectiveRowHeight}
                     searchResults={searchResults}
                     searchValue={searchValue}
                     onSearchValueChange={onSearchValueChange}

@@ -64,9 +64,9 @@ function drawSegment(
     }
 
     if (segment.variant === "removed") {
-        const midline = y + 2 - metrics.actualBoundingBoxAscent / 2;
-        const offset = Math.max(2, Math.floor(metrics.actualBoundingBoxAscent / 10));
-        ctx.strokeStyle = addedColor(theme);
+        const midline = y - metrics.actualBoundingBoxAscent / 2;
+        const offset = Math.max(1, Math.floor(metrics.actualBoundingBoxAscent / 10));
+        ctx.strokeStyle = fill;
 
         ctx.beginPath();
         ctx.moveTo(x, midline - offset);
