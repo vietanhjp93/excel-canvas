@@ -15,6 +15,7 @@ import {
     type ProvideEditorCallbackResult,
     type Rectangle,
     type ValidatedGridCell,
+    type EditSelectionBehavior,
 } from "../data-grid/data-grid-types.js";
 
 import type { CellActivatedEventArgs } from "../data-grid/event-args.js";
@@ -36,6 +37,7 @@ interface DataGridOverlayEditorProps {
     readonly onFinishEditing: (newCell: GridCell | undefined, movement: readonly [-1 | 0 | 1, -1 | 0 | 1]) => void;
     readonly forceEditMode: boolean;
     readonly highlight: boolean;
+    readonly selectionBehavior: EditSelectionBehavior;
     readonly portalElementRef?: React.RefObject<HTMLElement>;
     readonly imageEditorOverride?: ImageEditorType;
     readonly getCellRenderer: GetCellRendererCallback;
@@ -73,6 +75,7 @@ const DataGridOverlayEditor: React.FunctionComponent<DataGridOverlayEditorProps>
         isOutsideClick,
         customEventTarget,
         activation,
+        selectionBehavior,
     } = p;
 
     const [tempValue, setTempValueRaw] = React.useState<GridCell | undefined>(forceEditMode ? content : undefined);
@@ -191,6 +194,7 @@ const DataGridOverlayEditor: React.FunctionComponent<DataGridOverlayEditorProps>
             <CustomEditor
                 portalElementRef={portalElementRef}
                 isHighlighted={highlight}
+                selectionBehavior={selectionBehavior}
                 activation={activation}
                 onChange={setTempValue}
                 value={targetValue}

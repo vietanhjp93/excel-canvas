@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { GrowingEntryStyle, ShadowBox, InputBox } from "./growing-entry-style.js";
 import { assert } from "../../common/support.js";
-import type { SelectionRange } from "../data-grid/data-grid-types.js";
+import type { EditSelectionBehavior, SelectionRange } from "../data-grid/data-grid-types.js";
 
 interface Props
     extends React.DetailedHTMLProps<React.TextareaHTMLAttributes<HTMLTextAreaElement>, HTMLTextAreaElement> {
@@ -10,13 +10,23 @@ interface Props
     readonly highlight: boolean;
     readonly altNewline?: boolean;
     readonly validatedSelection?: SelectionRange;
+    readonly selectionBehavior?: EditSelectionBehavior;
 }
 
 let globalInputID = 0;
 
 /** @category Renderers */
 export const GrowingEntry: React.FunctionComponent<Props> = (props: Props) => {
-    const { placeholder, value, onKeyDown, highlight, altNewline, validatedSelection, ...rest } = props;
+    const {
+        placeholder,
+        value,
+        onKeyDown,
+        highlight,
+        altNewline,
+        validatedSelection,
+        selectionBehavior = "select-all",
+        ...rest
+    } = props;
     const { onChange, className } = rest;
 
     const inputRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -30,12 +40,30 @@ export const GrowingEntry: React.FunctionComponent<Props> = (props: Props) => {
 
     React.useEffect(() => {
         const ta = inputRef.current;
-        if (ta === null) return;
+        if (ta === null || ta.disabled) return;
 
-        if (ta.disabled) return;
         const length = useText.toString().length;
+        let start = length;
+        let end = length;
+        if (validatedSelection === undefined) {
+            switch (selectionBehavior) {
+                case "select-all":
+                    start = 0;
+                    end = length;
+                    break;
+                case "start":
+                    start = 0;
+                    end = 0;
+                    break;
+                default:
+                    start = length;
+                    end = length;
+                    break;
+            }
+        }
+
         ta.focus();
-        ta.setSelectionRange(highlight ? 0 : length, length);
+        ta.setSelectionRange(start, end);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

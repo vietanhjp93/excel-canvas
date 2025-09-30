@@ -36,11 +36,12 @@ export const textCellRenderer: InternalCellRenderer<TextCell> = {
     provideEditor: cell => ({
         disablePadding: cell.allowWrapping === true,
         editor: p => {
-            const { isHighlighted, onChange, value, validatedSelection } = p;
+            const { isHighlighted, onChange, value, validatedSelection, selectionBehavior } = p;
             return (
                 <GrowingEntry
                     style={cell.allowWrapping === true ? { padding: "3px 8.5px" } : undefined}
                     highlight={isHighlighted}
+                    selectionBehavior={selectionBehavior}
                     autoFocus={value.readonly !== true}
                     disabled={value.readonly === true}
                     altNewline={true}

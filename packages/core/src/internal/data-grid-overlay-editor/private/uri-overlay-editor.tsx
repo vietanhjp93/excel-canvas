@@ -2,7 +2,7 @@ import { EditPencil } from "../../../common/utils.js";
 import * as React from "react";
 import { GrowingEntry } from "../../growing-entry/growing-entry.js";
 import { UriOverlayEditorStyle } from "./uri-overlay-editor-style.js";
-import type { SelectionRange } from "../../data-grid/data-grid-types.js";
+import type { EditSelectionBehavior, SelectionRange } from "../../data-grid/data-grid-types.js";
 
 interface Props {
     readonly uri: string;
@@ -11,10 +11,11 @@ interface Props {
     readonly readonly: boolean;
     readonly preview: string;
     readonly validatedSelection?: SelectionRange;
+    readonly selectionBehavior?: EditSelectionBehavior;
 }
 
 const UriOverlayEditor: React.FunctionComponent<Props> = p => {
-    const { uri, onChange, forceEditMode, readonly, validatedSelection, preview } = p;
+    const { uri, onChange, forceEditMode, readonly, validatedSelection, preview, selectionBehavior } = p;
 
     const [editMode, setEditMode] = React.useState<boolean>(!readonly && (uri === "" || forceEditMode));
 
@@ -27,6 +28,7 @@ const UriOverlayEditor: React.FunctionComponent<Props> = p => {
             <GrowingEntry
                 validatedSelection={validatedSelection}
                 highlight={true}
+                selectionBehavior={selectionBehavior}
                 autoFocus={true}
                 value={uri}
                 onChange={onChange}

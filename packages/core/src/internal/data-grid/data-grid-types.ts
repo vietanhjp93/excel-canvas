@@ -381,6 +381,9 @@ export interface BubbleCell extends BaseGridCell {
 /** @category Renderers */
 export type SelectionRange = number | readonly [number, number];
 
+/** Controls how text is selected when a cell editor opens */
+export type EditSelectionBehavior = "select-all" | "start" | "end";
+
 /** @category Renderers */
 export type ProvideEditorComponent<T extends InnerGridCell> = React.FunctionComponent<{
     readonly onChange: (newValue: T) => void;
@@ -389,6 +392,7 @@ export type ProvideEditorComponent<T extends InnerGridCell> = React.FunctionComp
     readonly value: T;
     readonly initialValue?: string;
     readonly validatedSelection?: SelectionRange;
+    readonly selectionBehavior?: EditSelectionBehavior;
     readonly imageEditorOverride?: ImageEditorType;
     readonly markdownDivCreateNode?: (content: string) => DocumentFragment;
     readonly target: Rectangle;
@@ -518,6 +522,7 @@ export interface MarkerCell extends BaseGridCell {
     readonly checked: boolean;
     readonly checkboxStyle: "square" | "circle";
     readonly markerKind: "checkbox" | "number" | "both" | "checkbox-visible" | "checkbox-invisible";
+    readonly edgeHover?: "top" | "bottom";
 }
 
 /** @category Selection */

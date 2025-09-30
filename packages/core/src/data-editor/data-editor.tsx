@@ -32,6 +32,7 @@ import {
     type FillHandleDirection,
     type EditListItem,
     type CellActivationBehavior,
+    type EditSelectionBehavior,
 } from "../internal/data-grid/data-grid-types.js";
 import DataGridSearch, { type DataGridSearchProps } from "../internal/data-grid-search/data-grid-search.js";
 import { browserIsOSX } from "../common/browser-detect.js";
@@ -52,6 +53,10 @@ import {
     gridSelectionHasItem,
     getFreezeTrailingHeight,
 } from "../internal/data-grid/render/data-grid-lib.js";
+import {
+    getRowMarkerEdgeHover,
+    type RowMarkerEdgeHover,
+} from "../internal/data-grid/row-marker-edge.js";
 import { GroupRename } from "./group-rename.js";
 import { measureColumn, useColumnSizer } from "./use-column-sizer.js";
 import { isHotkey } from "../common/is-hotkey.js";
@@ -110,6 +115,9 @@ interface MouseState {
     readonly fillHandle?: boolean;
 }
 
+const edgeHoverEquals = (a?: RowMarkerEdgeHover, b?: RowMarkerEdgeHover) =>
+    a === b || (a !== undefined && b !== undefined && a.row === b.row && a.position === b.position && a.insertIndex === b.insertIndex);
+
 type Props = Partial<
     Omit<
         DataGridSearchProps,
@@ -149,6 +157,7 @@ type Props = Partial<
         | "onMouseDown"
         | "onMouseMove"
         | "onMouseUp"
+        | "onRowMarkerEdgeMouseDown"
         | "onVisibleRegionChanged"
         | "rowHeight"
         | "rows"
@@ -330,6 +339,16 @@ export interface DataEditorProps extends Props, Pick<DataGridSearchProps, "image
      * @group Style
      */
     readonly rowMarkers?: RowMarkerOptions["kind"] | RowMarkerOptions;
+    /**
+     * Called when the user clicks the hotspot between two row markers, useful for inserting rows.
+     * @group Events
+     */
+    readonly onRowMarkerEdgeMouseDown?: (args: {
+        readonly insertIndex: number;
+        readonly position: "top" | "bottom";
+        readonly row: number;
+        readonly event: GridMouseCellEventArgs;
+    }) => void;
     /**
      * Sets the width of row markers in pixels, if unset row markers will automatically size.
      * @group Style
@@ -582,6 +601,13 @@ export interface DataEditorProps extends Props, Pick<DataGridSearchProps, "image
     readonly editOnType?: boolean;
 
     /**
+     * Controls where the caret/selection is placed when a text-based editor opens.
+     * @defaultValue `"select-all"`
+     * @group Editing
+     */
+    readonly editSelectionBehavior?: EditSelectionBehavior;
+
+    /**
      * Used to fetch large amounts of cells at once. Used for copy/paste, if unset copy will not work.
      *
      * `getCellsForSelection` is called when the user copies a selection to the clipboard or the data editor needs to
@@ -765,6 +791,18 @@ const loadingCell: GridCell = {
     allowOverlay: false,
 };
 
+type OverlayState = {
+    target: Rectangle;
+    content: GridCell;
+    theme: FullTheme;
+    initialValue: string | undefined;
+    cell: Item;
+    highlight: boolean;
+    forceEditMode: boolean;
+    activation: CellActivatedEventArgs;
+    selectionBehavior: EditSelectionBehavior;
+};
+
 export const emptyGridSelection: GridSelection = {
     columns: CompactSelection.empty(),
     rows: CompactSelection.empty(),
@@ -774,19 +812,11 @@ export const emptyGridSelection: GridSelection = {
 const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorProps> = (p, forwardedRef) => {
     const [gridSelectionInner, setGridSelectionInner] = React.useState<GridSelection>(emptyGridSelection);
 
-    const [overlay, setOverlay] = React.useState<{
-        target: Rectangle;
-        content: GridCell;
-        theme: FullTheme;
-        initialValue: string | undefined;
-        cell: Item;
-        highlight: boolean;
-        forceEditMode: boolean;
-        activation: CellActivatedEventArgs;
-    }>();
+    const [overlay, setOverlay] = React.useState<OverlayState>();
     const searchInputRef = React.useRef<HTMLInputElement | null>(null);
     const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
     const [mouseState, setMouseState] = React.useState<MouseState>();
+    const [rowMarkerEdgeHover, setRowMarkerEdgeHover] = React.useState<RowMarkerEdgeHover>();
     const lastSent = React.useRef<[number, number]>();
 
     const safeWindow = typeof window === "undefined" ? null : window;
@@ -829,6 +859,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         onKeyUp: onKeyUpIn,
         keybindings: keybindingsIn,
         editOnType = true,
+        editSelectionBehavior = "select-all",
         onRowAppended,
         onColumnAppended,
         onColumnMoved,
@@ -886,6 +917,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         isDraggable,
         onDragLeave,
         onRowMoved,
+        onRowMarkerEdgeMouseDown,
         overscrollX: overscrollXIn,
         overscrollY: overscrollYIn,
         preventDiagonalScrolling,
@@ -959,6 +991,12 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
     const [showSearchInner, setShowSearchInner] = React.useState(false);
     const showSearch = showSearchIn ?? showSearchInner;
+
+    React.useEffect(() => {
+        if (!hasRowMarkers) {
+            setRowMarkerEdgeHover(undefined);
+        }
+    }, [hasRowMarkers]);
 
     const onSearchClose = React.useCallback(() => {
         if (onSearchCloseIn !== undefined) {
@@ -1318,6 +1356,12 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 }
                 const mappedRow = rowNumberMapper(row);
                 if (mappedRow === undefined) return loadingCell;
+                const isEdgeHovered = rowMarkerEdgeHover?.row === row;
+                const markerCursor = isEdgeHovered
+                    ? "crosshair"
+                    : rowMarkers === "clickable-number"
+                      ? "pointer"
+                      : undefined;
                 return {
                     kind: InnerGridCellKind.Marker,
                     allowOverlay: false,
@@ -1326,7 +1370,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     markerKind: rowMarkers === "clickable-number" ? "number" : rowMarkers,
                     row: rowMarkerStartIndex + mappedRow,
                     drawHandle: onRowMoved !== undefined,
-                    cursor: rowMarkers === "clickable-number" ? "pointer" : undefined,
+                    cursor: markerCursor,
+                    edgeHover: isEdgeHovered ? rowMarkerEdgeHover.position : undefined,
                 };
             } else if (isTrailing) {
                 //If the grid is empty, we will return text
@@ -1393,6 +1438,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             rowMarkerStartIndex,
             onRowMoved,
             rowMarkerOffset,
+            rowMarkerEdgeHover,
             trailingRowOptions?.hint,
             trailingRowOptions?.addIcon,
             experimental?.strict,
@@ -1428,20 +1474,30 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     );
 
     const setOverlaySimple = React.useCallback(
-        (val: Omit<NonNullable<typeof overlay>, "theme">) => {
+        (val: Omit<OverlayState, "theme" | "selectionBehavior"> & {
+            selectionBehavior?: EditSelectionBehavior;
+        }) => {
             const [col, row] = val.cell;
             const column = mangledCols[col];
             const groupTheme =
                 column?.group !== undefined ? mangledGetGroupDetails(column.group)?.overrideTheme : undefined;
             const colTheme = column?.themeOverride;
             const rowTheme = getRowThemeOverride?.(row);
+            const selectionBehavior = val.selectionBehavior ?? editSelectionBehavior;
 
             setOverlay({
                 ...val,
+                selectionBehavior,
                 theme: mergeAndRealizeTheme(mergedTheme, groupTheme, colTheme, rowTheme, val.content.themeOverride),
             });
         },
-        [getRowThemeOverride, mangledCols, mangledGetGroupDetails, mergedTheme]
+        [
+            editSelectionBehavior,
+            getRowThemeOverride,
+            mangledCols,
+            mangledGetGroupDetails,
+            mergedTheme,
+        ]
     );
 
     const reselect = React.useCallback(
@@ -1473,6 +1529,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     }
                 }
 
+                const selectionBehaviorOverride = initialValue === undefined ? undefined : "end";
+
                 setOverlaySimple({
                     target: bounds,
                     content,
@@ -1481,6 +1539,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     highlight: initialValue === undefined,
                     forceEditMode: initialValue !== undefined,
                     activation,
+                    ...(selectionBehaviorOverride !== undefined
+                        ? { selectionBehavior: selectionBehaviorOverride }
+                        : {}),
                 });
             } else if (c.kind === GridCellKind.Boolean && activation.inputType === "keyboard" && c.readonly !== true) {
                 mangledOnCellsEdited([
@@ -2095,6 +2156,19 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         button: number;
         location: Item;
     }>();
+    const handleRowMarkerEdgeMouseDown = React.useCallback(
+        (edge: RowMarkerEdgeHover, event: GridMouseCellEventArgs) => {
+            setRowMarkerEdgeHover(prev => (edgeHoverEquals(prev, edge) ? prev : edge));
+            onRowMarkerEdgeMouseDown?.({
+                insertIndex: edge.insertIndex,
+                position: edge.position,
+                row: edge.row,
+                event,
+            });
+            return true as const;
+        },
+        [onRowMarkerEdgeMouseDown]
+    );
     const onMouseDown = React.useCallback(
         (args: GridMouseEventArgs) => {
             isPrevented.current = false;
@@ -2119,6 +2193,14 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
             if (!fh && args.kind !== "cell" && args.isEdge) return;
 
+            if (hasRowMarkers && args.kind === "cell" && args.location[0] === 0) {
+                const hover = getRowMarkerEdgeHover(args, rows);
+                if (hover !== undefined) {
+                    handleRowMarkerEdgeMouseDown(hover, args);
+                    return;
+                }
+            }
+
             setMouseState({
                 previousSelection: gridSelection,
                 fillHandle: fh,
@@ -2131,7 +2213,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 lastMouseSelectLocation.current = args.location;
             }
         },
-        [gridSelection, handleSelect]
+        [gridSelection, handleRowMarkerEdgeMouseDown, handleSelect, hasRowMarkers, rows]
     );
 
     const [renameGroup, setRenameGroup] = React.useState<{
@@ -2544,6 +2626,13 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
     const onMouseMoveImpl = React.useCallback(
         (args: GridMouseEventArgs) => {
+            if (hasRowMarkers && args.kind === "cell") {
+                const hover = getRowMarkerEdgeHover(args, rows);
+                setRowMarkerEdgeHover(prev => (edgeHoverEquals(prev, hover) ? prev : hover));
+            } else if (rowMarkerEdgeHover !== undefined) {
+                setRowMarkerEdgeHover(undefined);
+            }
+
             const a: GridMouseEventArgs = {
                 ...args,
                 location: [args.location[0] - rowMarkerOffset, args.location[1]] as any,
@@ -2565,7 +2654,14 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     : args.scrollEdge;
             });
         },
-        [mouseState, onMouseMove, rowMarkerOffset]
+        [
+            hasRowMarkers,
+            mouseState,
+            onMouseMove,
+            rowMarkerEdgeHover,
+            rowMarkerOffset,
+            rows,
+        ]
     );
 
     const onHeaderMenuClickInner = React.useCallback(
@@ -4237,6 +4333,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     isDraggable={isDraggable}
                     onDragLeave={onDragLeave}
                     onRowMoved={onRowMoved}
+                    onRowMarkerEdgeMouseDown={handleRowMarkerEdgeMouseDown}
                     overscrollX={overscrollX}
                     overscrollY={overscrollY}
                     preventDiagonalScrolling={preventDiagonalScrolling}

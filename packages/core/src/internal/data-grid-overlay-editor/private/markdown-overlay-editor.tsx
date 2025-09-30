@@ -3,7 +3,7 @@ import MarkdownDiv from "../../markdown-div/markdown-div.js";
 import { GrowingEntry } from "../../growing-entry/growing-entry.js";
 import { MarkdownOverlayEditorStyle } from "./markdown-overlay-editor-style.js";
 import { EditPencil, Checkmark } from "../../../common/utils.js";
-import type { MarkdownCell, Rectangle, SelectionRange } from "../../data-grid/data-grid-types.js";
+import type { EditSelectionBehavior, MarkdownCell, Rectangle, SelectionRange } from "../../data-grid/data-grid-types.js";
 
 interface Props {
     readonly targetRect: Rectangle;
@@ -12,13 +12,24 @@ interface Props {
     readonly onFinish: (newValue?: MarkdownCell | undefined) => void;
     readonly validatedSelection?: SelectionRange;
 
+    readonly selectionBehavior?: EditSelectionBehavior;
+
     readonly value: MarkdownCell;
 
     createNode?: (content: string) => DocumentFragment;
 }
 
 export const MarkdownOverlayEditor: React.FunctionComponent<Props> = p => {
-    const { value, onChange, forceEditMode, createNode, targetRect, onFinish, validatedSelection } = p;
+    const {
+        value,
+        onChange,
+        forceEditMode,
+        createNode,
+        targetRect,
+        onFinish,
+        validatedSelection,
+        selectionBehavior,
+    } = p;
 
     const markdown = value.data;
     const readonly = value.readonly === true;
@@ -35,6 +46,7 @@ export const MarkdownOverlayEditor: React.FunctionComponent<Props> = p => {
                 <GrowingEntry
                     autoFocus={true}
                     highlight={false}
+                    selectionBehavior={selectionBehavior}
                     validatedSelection={validatedSelection}
                     value={markdown}
                     onKeyDown={e => {
