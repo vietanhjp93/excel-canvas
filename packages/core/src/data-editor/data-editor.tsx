@@ -93,7 +93,7 @@ import { useRowGroupingInner, type RowGroupingOptions } from "./row-grouping.js"
 import { useRowGrouping } from "./row-grouping-api.js";
 import { useInitialScrollOffset } from "./use-initial-scroll-offset.js";
 import type { VisibleRegion } from "./visible-region.js";
-import { isHistoryDiffCell } from "../cells/history-diff-cell.js";
+import { isHistoryDiffCell, measureHistoryDiffCellHeight } from "../cells/history-diff-cell.js";
 import type { HistoryDiffCell } from "../cells/history-diff-cell.js";
 
 const DataGridOverlayEditor = React.lazy(
@@ -1498,49 +1498,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         [mergedTheme]
     );
 
-    const computeHistoryDiffCellHeight = React.useCallback(
-        (
-            ctx: CanvasRenderingContext2D,
-            cell: HistoryDiffCell,
-            availableWidth: number,
-            emHeight: number,
-            lineGap: number
-        ): number => {
-            const padding = mergedTheme.cellVerticalPadding * 2;
-            if (availableWidth <= 0) {
-                return padding + emHeight;
-            }
-
-            if (cell.data.layout === "inline") {
-                const inlineText = cell.data.primary.map(seg => seg.text).join("");
-                return computeTextCellHeight(ctx, inlineText, false, availableWidth, emHeight, lineGap);
-            }
-
-            const primaryText = cell.data.primary.map(seg => seg.text).join("");
-            const primaryLines = splitMultilineText(ctx, primaryText, mergedTheme.baseFontFull, availableWidth, false);
-            const primaryCount = Math.max(1, primaryLines.length);
-            const primaryHeight = emHeight + lineGap * (primaryCount - 1);
-
-            let totalHeight = primaryHeight;
-            if (cell.data.secondary !== undefined && cell.data.secondary.length > 0) {
-                const secondaryText = cell.data.secondary.map(seg => seg.text).join("");
-                const secondaryLines = splitMultilineText(
-                    ctx,
-                    secondaryText,
-                    mergedTheme.baseFontFull,
-                    availableWidth,
-                    false
-                );
-                const secondaryCount = Math.max(1, secondaryLines.length);
-                const secondaryHeight = emHeight + lineGap * (secondaryCount - 1);
-                totalHeight += secondaryHeight + mergedTheme.cellVerticalPadding;
-            }
-
-            return totalHeight + padding;
-        },
-        [computeTextCellHeight, mergedTheme]
-    );
-
     const measureRowHeight = React.useCallback(
         (row: number): number => {
             if (!autoRowHeight) {
@@ -1648,12 +1605,11 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     case GridCellKind.Custom: {
                         const gridCell = cell as GridCell;
                         if (isHistoryDiffCell(gridCell)) {
-                            estimatedHeight = computeHistoryDiffCellHeight(
+                            estimatedHeight = measureHistoryDiffCellHeight(
                                 ctx,
+                                mergedTheme,
                                 gridCell as HistoryDiffCell,
-                                availableWidth,
-                                emHeight,
-                                lineGap
+                                availableWidth
                             );
                         }
                         break;
@@ -1673,7 +1629,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         [
             autoRowHeight,
             baseRowHeight,
-            computeHistoryDiffCellHeight,
             computeTextCellHeight,
             getMangledCellContent,
             mangledCols,

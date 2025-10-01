@@ -71,6 +71,7 @@ export {
     historyDiffCellRenderer,
     isHistoryDiffCell,
     createHistoryDiffCell,
+    measureHistoryDiffCellHeight,
 } from "./cells/history-diff-cell.js";
 export type {
     HistoryDiffCell,
