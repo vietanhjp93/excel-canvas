@@ -1,6 +1,6 @@
 {
-    "name": "@glideapps/glide-data-grid",
-    "version": "6.0.4-alpha23",
+    "name": "excel-canvas",
+    "version": "1.0.0",
     "description": "React data grid for beautifully displaying and editing large amounts of data with amazing performance.",
     "sideEffects": [
         "**/*.css"
@@ -35,8 +35,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/glideapps/glide-data-grid.git",
-        "directory": "packages/core"
+        "url": "git+https://github.com/vietanhjp93/glide-data-grid.git"
     },
     "keywords": [
         "react",
@@ -50,12 +49,12 @@
         "cell",
         "canvas"
     ],
-    "author": "Glide",
+    "author": "vietanhjp93",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/glideapps/glide-data-grid/issues"
+        "url": "https://github.com/vietanhjp93/glide-data-grid/issues"
     },
-    "homepage": "https://grid.glideapps.com",
+    "homepage": "https://github.com/vietanhjp93/glide-data-grid",
     "dependencies": {
         "@linaria/react": "^6.3.0",
         "canvas-hypertxt": "^1.0.3",

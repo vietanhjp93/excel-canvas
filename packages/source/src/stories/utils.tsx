@@ -12,7 +12,7 @@ import {
     isTextEditableGridCell,
     type Item,
     type Rectangle,
-} from "@glideapps/glide-data-grid";
+} from "excel-canvas";
 
 import { faker } from "@faker-js/faker";
 

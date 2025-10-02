@@ -1,4 +1,4 @@
-import type { CustomCell } from "@glideapps/glide-data-grid";
+import type { CustomCell } from "excel-canvas";
 
 interface ArticleCellProps {
     readonly kind: "article-cell";

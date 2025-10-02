@@ -1,6 +1,6 @@
 {
-    "name": "root",
-    "version": "6.0.4-alpha23",
+    "name": "excel-canvas-workspace",
+    "version": "1.0.0",
     "scripts": {
         "start": "npm run storybook",
         "version": "./update-version.sh",
@@ -20,7 +20,7 @@
         "test-projects": "cd test-projects/ && ./bootstrap-projects.sh"
     },
     "type": "commonjs",
-    "author": "Glide",
+    "author": "vietanhjp93",
     "license": "MIT",
     "workspaces": [
         "./packages/core",

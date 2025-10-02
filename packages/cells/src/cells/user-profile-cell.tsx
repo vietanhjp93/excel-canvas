@@ -7,7 +7,7 @@ import {
     type CustomRenderer,
     getMiddleCenterBias,
     GridCellKind,
-} from "@glideapps/glide-data-grid";
+} from "excel-canvas";
 
 interface UserProfileCellProps {
     readonly kind: "user-profile-cell";

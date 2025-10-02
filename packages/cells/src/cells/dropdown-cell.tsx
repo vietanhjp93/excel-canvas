@@ -11,7 +11,7 @@ import {
     useTheme,
     GridCellKind,
     TextCellEntry,
-} from "@glideapps/glide-data-grid";
+} from "excel-canvas";
 
 interface CustomMenuProps extends MenuProps<any> {}
 

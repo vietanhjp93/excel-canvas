@@ -1,7 +1,7 @@
 {
-    "name": "@glideapps/glide-data-grid-source",
-    "version": "6.0.4-alpha23",
-    "description": "Useful data source hooks for Glide Data Grid",
+    "name": "excel-canvas-source",
+    "version": "1.0.0",
+    "description": "Useful data source hooks for Excel Canvas",
     "sideEffects": false,
     "type": "module",
     "browser": "dist/esm/index.js",
@@ -23,11 +23,10 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/glideapps/glide-data-grid.git",
-        "directory": "packages/source"
+        "url": "git+https://github.com/vietanhjp93/glide-data-grid.git"
     },
-    "homepage": "https://github.com/glideapps/glide-data-grid/tree/main/packages/source",
-    "author": "Glide",
+    "homepage": "https://github.com/vietanhjp93/glide-data-grid",
+    "author": "vietanhjp93",
     "license": "MIT",
     "keywords": [
         "react",
@@ -42,7 +41,7 @@
         "canvas"
     ],
     "dependencies": {
-        "@glideapps/glide-data-grid": "6.0.4-alpha23"
+        "excel-canvas": "^1.0.0"
     },
     "peerDependencies": {
         "lodash": "^4.17.19",
