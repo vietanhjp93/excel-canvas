@@ -354,6 +354,12 @@ export interface DataEditorProps extends Props, Pick<DataGridSearchProps, "image
         readonly event: GridMouseCellEventArgs;
     }) => void;
     /**
+     * Enable/disable the row insert edge hover indicator (blue line between rows).
+     * @defaultValue true
+     * @group Style
+     */
+    readonly enableRowInsertEdge?: boolean;
+    /**
      * Sets the width of row markers in pixels, if unset row markers will automatically size.
      * @group Style
      * @deprecated Use `rowMarkers` instead.
@@ -968,6 +974,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         scrollToActiveCell = true,
         drawFocusRing: drawFocusRingIn = true,
         portalElementRef,
+        enableRowInsertEdge = true, // ✅ NEW: Default true to keep existing behavior
     } = p;
 
     const drawFocusRing = drawFocusRingIn === "no-editor" ? overlay === undefined : drawFocusRingIn;
@@ -2457,7 +2464,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
             if (!fh && args.kind !== "cell" && args.isEdge) return;
 
-            if (hasRowMarkers && args.kind === "cell" && args.location[0] === 0) {
+            if (enableRowInsertEdge && hasRowMarkers && args.kind === "cell" && args.location[0] === 0) {
                 const hover = getRowMarkerEdgeHover(args, rows);
                 if (hover !== undefined) {
                     handleRowMarkerEdgeMouseDown(hover, args);
@@ -2890,7 +2897,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
     const onMouseMoveImpl = React.useCallback(
         (args: GridMouseEventArgs) => {
-            if (hasRowMarkers && args.kind === "cell") {
+            if (enableRowInsertEdge && hasRowMarkers && args.kind === "cell") {
                 const hover = getRowMarkerEdgeHover(args, rows);
                 setRowMarkerEdgeHover(prev => (edgeHoverEquals(prev, hover) ? prev : hover));
             } else if (rowMarkerEdgeHover !== undefined) {
@@ -2919,6 +2926,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             });
         },
         [
+            enableRowInsertEdge,
             hasRowMarkers,
             mouseState,
             onMouseMove,
