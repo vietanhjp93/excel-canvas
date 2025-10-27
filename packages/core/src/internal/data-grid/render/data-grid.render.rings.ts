@@ -88,6 +88,7 @@ export function drawHighlightRings(
             return {
                 color: h.color,
                 style,
+                borderWidth: h.borderWidth ?? 1,  // ✅ NEW: Pass borderWidth, default 1
                 clip: arg.clip,
                 rect: hugRectToTarget(
                     {
@@ -105,9 +106,8 @@ export function drawHighlightRings(
     });
 
     const drawCb = () => {
-        ctx.lineWidth = 1;
-
         let dashed = false;
+        let currentLineWidth = 1;  // ✅ Track current line width
 
         for (const dr of drawRects) {
             for (const s of dr) {
@@ -123,6 +123,14 @@ export function drawHighlightRings(
                         ctx.rect(s.clip.x, s.clip.y, s.clip.width, s.clip.height);
                         ctx.clip();
                     }
+                    
+                    // ✅ Set line width from borderWidth property
+                    const lineWidth = s.borderWidth ?? 1;
+                    if (lineWidth !== currentLineWidth) {
+                        ctx.lineWidth = lineWidth;
+                        currentLineWidth = lineWidth;
+                    }
+                    
                     if (s.style === "dashed" && !dashed) {
                         ctx.setLineDash([5, 3]);
                         dashed = true;
@@ -135,7 +143,16 @@ export function drawHighlightRings(
                             ? blend(blend(s.color, theme.borderColor), theme.bgCell)
                             : withAlpha(s.color, 1);
                     ctx.closePath();
-                    ctx.strokeRect(s.rect.x + 0.5, s.rect.y + 0.5, s.rect.width - 1, s.rect.height - 1);
+                    
+                    // ✅ Adjust stroke position based on line width
+                    const offset = lineWidth / 2;
+                    ctx.strokeRect(
+                        s.rect.x + offset, 
+                        s.rect.y + offset, 
+                        s.rect.width - lineWidth, 
+                        s.rect.height - lineWidth
+                    );
+                    
                     if (needsClip) {
                         ctx.restore();
                         dashed = wasDashed;

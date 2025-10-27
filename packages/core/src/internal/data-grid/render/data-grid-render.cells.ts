@@ -58,6 +58,7 @@ export interface Highlight {
     readonly color: string;
     readonly range: Rectangle;
     readonly style?: "dashed" | "solid" | "no-outline" | "solid-outline";
+    readonly borderWidth?: number;  // ✅ NEW: Custom border width (default 1)
 }
 
 // preppable items:

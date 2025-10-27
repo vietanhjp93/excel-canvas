@@ -1,4 +1,5 @@
 {
     "eslint.workingDirectories": ["packages/core", "packages/cells", "packages/source"],
-    "typescript.tsdk": "node_modules/typescript/lib"
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "chatgpt.openOnStartup": false
 }
