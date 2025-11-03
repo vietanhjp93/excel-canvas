@@ -11,7 +11,11 @@ import DatePickerRenderer, { type DatePickerCell } from "./cells/date-picker-cel
 import LinksCellRenderer, { type LinksCell } from "./cells/links-cell.js";
 import ButtonCellRenderer, { type ButtonCell } from "./cells/button-cell.js";
 import TreeViewCellRenderer, { type TreeViewCell } from "./cells/tree-view-cell.js";
-import MultiSelectCellRenderer, { type MultiSelectCell } from "./cells/multi-select-cell.js";
+import MultiSelectCellRenderer, {
+    type MultiSelectCell,
+    isMultiSelectCell,
+    measureMultiSelectCellHeight
+} from "./cells/multi-select-cell.js";
 
 const cells = [
     StarCellRenderer,
@@ -44,6 +48,8 @@ export {
     TreeViewCellRenderer as TreeViewCell,
     MultiSelectCellRenderer as MultiSelectCell,
     cells as allCells,
+    isMultiSelectCell,
+    measureMultiSelectCellHeight,
 };
 
 export type {

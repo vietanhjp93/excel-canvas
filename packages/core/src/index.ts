@@ -2,7 +2,7 @@ export type { OverlayImageEditorProps } from "./internal/data-grid-overlay-edito
 export type { MarkdownDivProps } from "./internal/markdown-div/markdown-div.js";
 export type { SpriteMap, HeaderIcon, Sprite } from "./internal/data-grid/data-grid-sprites.js";
 export type { SpriteProps } from "./common/utils.js";
-export type { Theme } from "./common/styles.js";
+export type { Theme, FullTheme } from "./common/styles.js";
 export type { CustomRenderer, BaseDrawArgs, DrawArgs } from "./cells/cell-types.js";
 export type { SelectionBlending } from "./internal/data-grid/use-selection-behavior.js";
 export type { GetRowThemeCallback, Highlight } from "./internal/data-grid/render/data-grid-render.cells.js";

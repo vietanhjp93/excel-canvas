@@ -72,7 +72,7 @@ export const uriCellRenderer: InternalCellRenderer<UriCell> = {
     useLabel: true,
     drawPrep: prepTextCell,
     draw: a => {
-        const { cell, theme, overrideCursor, hoverX, hoverY, rect, ctx } = a;
+        const { cell, theme, overrideCursor, hoverX, hoverY, rect, ctx, hyperWrapping } = a;
         const txt = cell.displayData ?? cell.data;
         const isLinky = cell.hoverEffect === true;
         if (overrideCursor !== undefined && isLinky && hoverX !== undefined && hoverY !== undefined) {
@@ -97,16 +97,17 @@ export const uriCellRenderer: InternalCellRenderer<UriCell> = {
 
                 ctx.save();
                 ctx.fillStyle = a.cellFillColor;
-                drawTextCell({ ...a, rect: { ...rect, x: rect.x - 1 } }, txt, cell.contentAlign);
-                drawTextCell({ ...a, rect: { ...rect, x: rect.x - 2 } }, txt, cell.contentAlign);
-                drawTextCell({ ...a, rect: { ...rect, x: rect.x + 1 } }, txt, cell.contentAlign);
-                drawTextCell({ ...a, rect: { ...rect, x: rect.x + 2 } }, txt, cell.contentAlign);
+                // ✅ Pass allowWrapping to all drawTextCell calls
+                drawTextCell({ ...a, rect: { ...rect, x: rect.x - 1 } }, txt, cell.contentAlign, cell.allowWrapping, hyperWrapping);
+                drawTextCell({ ...a, rect: { ...rect, x: rect.x - 2 } }, txt, cell.contentAlign, cell.allowWrapping, hyperWrapping);
+                drawTextCell({ ...a, rect: { ...rect, x: rect.x + 1 } }, txt, cell.contentAlign, cell.allowWrapping, hyperWrapping);
+                drawTextCell({ ...a, rect: { ...rect, x: rect.x + 2 } }, txt, cell.contentAlign, cell.allowWrapping, hyperWrapping);
                 ctx.restore();
             }
         }
 
         ctx.fillStyle = isLinky ? theme.linkColor : theme.textDark;
-        drawTextCell(a, txt, cell.contentAlign);
+        drawTextCell(a, txt, cell.contentAlign, cell.allowWrapping, hyperWrapping);
     },
     onSelect: e => {
         if (isOverLinkText(e)) {
@@ -121,8 +122,38 @@ export const uriCellRenderer: InternalCellRenderer<UriCell> = {
         }
         return undefined;
     },
-    measure: (ctx, cell, theme) =>
-        ctx.measureText(cell.displayData ?? cell.data).width + theme.cellHorizontalPadding * 2,
+    measure: (ctx, cell, theme) => {
+        const txt = cell.displayData ?? cell.data;
+
+        if (cell.allowWrapping === false) {
+            // When wrapping disabled, return full text width (expand column to fit)
+            const lines = txt.split("\n", 1);
+            let maxLineWidth = 0;
+            for (const line of lines) {
+                maxLineWidth = Math.max(maxLineWidth, ctx.measureText(line).width);
+            }
+            return maxLineWidth + 2 * theme.cellHorizontalPadding;
+        }
+
+        // When wrapping enabled, return preferred width (not required width)
+        // Find longest word to avoid breaking words
+        const words = txt.split(/\s+/);
+        let longestWord = 0;
+        for (const word of words) {
+            longestWord = Math.max(longestWord, ctx.measureText(word).width);
+        }
+
+        // Return reasonable preferred width: longest word or 200px, capped at 400px
+        const minPreferredWidth = 200;
+        const maxPreferredWidth = 400;
+        const preferredContentWidth = Math.max(
+            longestWord,
+            Math.min(minPreferredWidth, maxPreferredWidth)
+        );
+        const cappedWidth = Math.min(preferredContentWidth, maxPreferredWidth);
+
+        return cappedWidth + 2 * theme.cellHorizontalPadding;
+    },
     onDelete: c => ({
         ...c,
         data: "",

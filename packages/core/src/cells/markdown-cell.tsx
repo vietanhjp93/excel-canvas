@@ -12,10 +12,36 @@ export const markdownCellRenderer: InternalCellRenderer<MarkdownCell> = {
     needsHoverPosition: false,
     drawPrep: prepTextCell,
     measure: (ctx, cell, t) => {
-        const firstLine = cell.data.split("\n")[0];
-        return ctx.measureText(firstLine).width + 2 * t.cellHorizontalPadding;
+        if (cell.allowWrapping === false) {
+            // When wrapping disabled, return full text width (expand column to fit)
+            const lines = cell.data.split("\n", 1);
+            let maxLineWidth = 0;
+            for (const line of lines) {
+                maxLineWidth = Math.max(maxLineWidth, ctx.measureText(line).width);
+            }
+            return maxLineWidth + 2 * t.cellHorizontalPadding;
+        }
+
+        // When wrapping enabled, return preferred width (not required width)
+        // Find longest word to avoid breaking words
+        const words = cell.data.split(/\s+/);
+        let longestWord = 0;
+        for (const word of words) {
+            longestWord = Math.max(longestWord, ctx.measureText(word).width);
+        }
+
+        // Return reasonable preferred width: longest word or 200px, capped at 400px
+        const minPreferredWidth = 200;
+        const maxPreferredWidth = 400;
+        const preferredContentWidth = Math.max(
+            longestWord,
+            Math.min(minPreferredWidth, maxPreferredWidth)
+        );
+        const cappedWidth = Math.min(preferredContentWidth, maxPreferredWidth);
+
+        return cappedWidth + 2 * t.cellHorizontalPadding;
     },
-    draw: a => drawTextCell(a, a.cell.data, a.cell.contentAlign),
+    draw: a => drawTextCell(a, a.cell.data, a.cell.contentAlign, a.cell.allowWrapping, a.hyperWrapping),
     onDelete: c => ({
         ...c,
         data: "",

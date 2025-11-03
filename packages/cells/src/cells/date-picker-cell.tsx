@@ -43,6 +43,8 @@ export interface DatePickerCellProps {
     /* Granularity that the date must adhere.
     This is passed to the step attribute of the HTML input element. */
     readonly step?: string;
+    /* If true, text will wrap to multiple lines. Default is true. */
+    readonly allowWrapping?: boolean;
 }
 
 export type DateKind = "date" | "time" | "datetime-local";
@@ -146,13 +148,19 @@ const renderer: CustomRenderer<DatePickerCell> = {
     kind: GridCellKind.Custom,
     isMatch: (cell: CustomCell): cell is DatePickerCell => (cell.data as any).kind === "date-picker-cell",
     draw: (args, cell) => {
-        const { displayDate } = cell.data;
-        drawTextCell(args, displayDate, cell.contentAlign);
+        const { displayDate, allowWrapping } = cell.data;
+        drawTextCell(args, displayDate, cell.contentAlign, allowWrapping);
         return true;
     },
     measure: (ctx, cell, theme) => {
-        const { displayDate } = cell.data;
-        return ctx.measureText(displayDate).width + theme.cellHorizontalPadding * 2;
+        const { displayDate, allowWrapping } = cell.data;
+        // ✅ Support allowWrapping: measure all lines if wrapping enabled
+        const lines = displayDate.split("\n", allowWrapping !== false ? undefined : 1);
+        let maxLineWidth = 0;
+        for (const line of lines) {
+            maxLineWidth = Math.max(maxLineWidth, ctx.measureText(line).width);
+        }
+        return maxLineWidth + theme.cellHorizontalPadding * 2;
     },
     provideEditor: () => ({
         editor: Editor,

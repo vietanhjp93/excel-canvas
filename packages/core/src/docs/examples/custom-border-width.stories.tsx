@@ -34,6 +34,7 @@ export const CustomBorderWidth: React.VFC = () => {
     const { cols, getCellContent } = useMockDataGenerator(60);
 
     // ✅ Different border widths for different regions
+    const solidOutlineStyle = "solid-outline" as const;
     const highlightRegions = [
         {
             color: "#FF0000",
@@ -43,7 +44,7 @@ export const CustomBorderWidth: React.VFC = () => {
                 width: 4,
                 height: 3,
             },
-            style: "solid-outline" as const,
+            style: solidOutlineStyle,
             borderWidth: 1,  // ✅ Thin border (1px)
         },
         {
@@ -54,7 +55,7 @@ export const CustomBorderWidth: React.VFC = () => {
                 width: 4,
                 height: 3,
             },
-            style: "solid-outline" as const,
+            style: solidOutlineStyle,
             borderWidth: 3,  // ✅ Medium border (3px)
         },
         {
@@ -65,7 +66,7 @@ export const CustomBorderWidth: React.VFC = () => {
                 width: 4,
                 height: 3,
             },
-            style: "solid-outline" as const,
+            style: solidOutlineStyle,
             borderWidth: 5,  // ✅ Thick border (5px)
         },
         {

@@ -166,9 +166,11 @@ export function useColumnSizer(
 
     return React.useMemo(() => {
         const getRaw = () => {
-            if (columns.every(isSizedGridColumn)) {
-                return columns;
-            }
+            // ✅ REMOVED: Don't return input reference directly
+            // This prevents React from detecting column width changes
+            // if (columns.every(isSizedGridColumn)) {
+            //     return columns;
+            // }
 
             if (ctx === null) {
                 return columns.map(c => {

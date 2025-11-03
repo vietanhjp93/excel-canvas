@@ -1033,7 +1033,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     }, [autoRowHeight]);
 
     const rowHeightsRef = React.useRef<Map<number, number>>(new Map());
-    const [rowHeightsRevision, setRowHeightsRevision] = React.useState(0);
 
     const keybindings = useKeybindingsWithDefaults(keybindingsIn);
 
@@ -1497,6 +1496,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 return textHeight + padding;
             }
 
+            // ✅ FIX: Ensure font is set before splitMultilineText
+            ctx.font = mergedTheme.baseFontFull;
+
             const lines = splitMultilineText(ctx, text, mergedTheme.baseFontFull, availableWidth, false);
             const count = Math.max(1, lines.length);
             const textHeight = emHeight + lineGap * (count - 1);
@@ -1573,7 +1575,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                         estimatedHeight = computeTextCellHeight(
                             ctx,
                             display,
-                            cell.allowWrapping === true,
+                            cell.allowWrapping !== false,
                             availableWidth,
                             emHeight,
                             lineGap
@@ -1598,7 +1600,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                         const content = (cell as { displayData?: string; data?: string }).displayData ??
                             (cell as { data?: string }).data ??
                             "";
-                        const allowWrapping = (cell as { allowWrapping?: boolean }).allowWrapping === true;
+                        const allowWrapping = (cell as { allowWrapping?: boolean }).allowWrapping !== false;
                         estimatedHeight = computeTextCellHeight(
                             ctx,
                             content,
@@ -1618,6 +1620,47 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                                 gridCell as HistoryDiffCell,
                                 availableWidth
                             );
+                        } else if ((gridCell as any).data?.kind === "multi-select-cell") {
+                            // Multi-select cell with bubble wrapping support
+                            // Calculate required height based on bubble layout
+                            const cellData = (gridCell as any).data;
+                            const values = cellData.values;
+                            const allowMultiSelect = cellData.allowMultiSelect !== false;
+
+                            if (values !== undefined && values !== null && values.length > 0 && allowMultiSelect) {
+                                // Simulate bubble layout to count required rows
+                                let x = 0;
+                                let rowCount = 1;
+
+                                for (const value of values) {
+                                    // Get display text
+                                    const options = cellData.options ?? [];
+                                    const matchedOption = options.find((opt: any) => {
+                                        const optValue = typeof opt === "string" ? opt : opt?.value;
+                                        return optValue === value;
+                                    });
+                                    const displayText = typeof matchedOption === "string"
+                                        ? matchedOption
+                                        : matchedOption?.label ?? value;
+
+                                    // Measure bubble width
+                                    const metrics = ctx.measureText(displayText);
+                                    const bubbleWidth = metrics.width + mergedTheme.bubblePadding * 2;
+
+                                    // Check if bubble fits on current row
+                                    if (x > 0 && x + bubbleWidth > availableWidth) {
+                                        rowCount++;
+                                        x = 0;
+                                    }
+
+                                    x += bubbleWidth + mergedTheme.bubbleMargin;
+                                }
+
+                                // Calculate total height
+                                const totalBubbleHeight = rowCount * mergedTheme.bubbleHeight +
+                                    (rowCount - 1) * mergedTheme.bubblePadding;
+                                estimatedHeight = totalBubbleHeight + mergedTheme.cellVerticalPadding * 2;
+                            }
                         }
                         break;
                     }
@@ -1652,7 +1695,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             const current = rowHeightsRef.current.get(row);
             if (current === undefined || Math.abs(current - next) > 0.5) {
                 rowHeightsRef.current.set(row, next);
-                setRowHeightsRevision(rev => rev + 1);
             }
         },
         [autoRowHeight, measureRowHeight]
@@ -1672,12 +1714,10 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     React.useEffect(() => {
         if (!autoRowHeight) {
             rowHeightsRef.current.clear();
-            setRowHeightsRevision(rev => rev + 1);
             return;
         }
 
         rowHeightsRef.current.clear();
-        setRowHeightsRevision(rev => rev + 1);
         const region = visibleRegionRef.current;
         if (region !== undefined) {
             measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
@@ -1689,7 +1729,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             return rowHeight;
         }
         return (rowIndex: number) => rowHeightsRef.current.get(rowIndex) ?? baseRowHeight(rowIndex);
-    }, [autoRowHeight, baseRowHeight, rowHeight, rowHeightsRevision]);
+    }, [autoRowHeight, baseRowHeight, rowHeight]);
 
     const mangledOnCellsEdited = React.useCallback<NonNullable<typeof onCellsEdited>>(
         (items: readonly EditListItem[]) => {
@@ -2484,7 +2524,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 lastMouseSelectLocation.current = args.location;
             }
         },
-        [gridSelection, handleRowMarkerEdgeMouseDown, handleSelect, hasRowMarkers, rows]
+        [enableRowInsertEdge, gridSelection, handleRowMarkerEdgeMouseDown, handleSelect, hasRowMarkers, rows]
     );
 
     const [renameGroup, setRenameGroup] = React.useState<{

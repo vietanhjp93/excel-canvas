@@ -69,6 +69,11 @@ function makeHyperMap(ctx: CanvasRenderingContext2D, avgSize: number): Map<strin
 }
 
 function measureText(ctx: CanvasRenderingContext2D, text: string, fontStyle: string, hyperMode: boolean): number {
+    // ✅ CRITICAL FIX: Set font before ANY measureText calls
+    // Without this, ctx.font may be stale from previous render operations,
+    // causing incorrect text width measurements and wrong line wrapping
+    ctx.font = fontStyle;
+
     const current = metrics.get(fontStyle);
 
     if (hyperMode && current !== undefined && current.count > 20_000) {
@@ -203,12 +208,14 @@ export function splitMultilineText(
     const encodedLines: string[] = value.split("\n");
 
     const fontMetrics = metrics.get(fontStyle);
-    const safeLineGuess = fontMetrics === undefined ? value.length : (width / fontMetrics.size) * 1.5;
     const hyperMode = hyperWrappingAllowed && fontMetrics !== undefined && fontMetrics.count > 20_000;
 
     for (let line of encodedLines) {
-        let textWidth = measureText(ctx, line.slice(0, Math.max(0, safeLineGuess)), fontStyle, hyperMode);
-        let measuredChars = Math.min(line.length, safeLineGuess);
+        // ✅ FIX: Always measure FULL line first to check if it fits
+        // Previous bug: measured only safeLineGuess chars but pushed entire line
+        let textWidth = measureText(ctx, line, fontStyle, hyperMode);
+        let measuredChars = line.length;
+
         if (textWidth <= width) {
             // line fits, just push it
             result.push(line);
@@ -228,8 +235,9 @@ export function splitMultilineText(
 
                 line = line.slice(subLine.length);
                 result.push(subLine);
-                textWidth = measureText(ctx, line.slice(0, Math.max(0, safeLineGuess)), fontStyle, hyperMode);
-                measuredChars = Math.min(line.length, safeLineGuess);
+                // ✅ FIX: Measure FULL remaining line, not just safeLineGuess
+                textWidth = measureText(ctx, line, fontStyle, hyperMode);
+                measuredChars = line.length;
             }
             if (textWidth > 0) {
                 result.push(line);

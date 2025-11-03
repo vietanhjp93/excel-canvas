@@ -478,6 +478,7 @@ export interface RowIDCell extends BaseGridCell {
     readonly kind: GridCellKind.RowID;
     readonly data: string;
     readonly readonly?: boolean;
+    readonly allowWrapping?: boolean;
 }
 
 /** @category Cells */
@@ -485,6 +486,7 @@ export interface MarkdownCell extends BaseGridCell {
     readonly kind: GridCellKind.Markdown;
     readonly data: string;
     readonly readonly?: boolean;
+    readonly allowWrapping?: boolean;
 }
 
 /** @category Cells */
@@ -495,6 +497,7 @@ export interface UriCell extends BaseGridCell {
     readonly readonly?: boolean;
     readonly onClickUri?: (args: BaseGridMouseEventArgs & { readonly preventDefault: () => void }) => void;
     readonly hoverEffect?: boolean;
+    readonly allowWrapping?: boolean;
 }
 
 /** @category Cells */

@@ -5,12 +5,14 @@ import {
     type ProvideEditorCallback,
     type CustomRenderer,
     type Rectangle,
+    type FullTheme,
     measureTextCached,
     getMiddleCenterBias,
     useTheme,
     GridCellKind,
     roundedRect,
     getLuminance,
+    drawTextCell,
 } from "excel-canvas";
 
 import { styled } from "@linaria/react";
@@ -34,6 +36,11 @@ interface MultiSelectCellProps {
     readonly allowCreation?: boolean;
     /* If true, users can select the same value multiple times. */
     readonly allowDuplicates?: boolean;
+    /* If false, only one value can be selected at a time (single select mode).
+    If true or undefined, multiple values can be selected (multi select mode). Default is true. */
+    readonly allowMultiSelect?: boolean;
+    /* If true, text will wrap to multiple lines (only applies in single-select mode). Default is true. */
+    readonly allowWrapping?: boolean;
 }
 
 /* This prefix is used when allowDuplicates is enabled to make sure that
@@ -132,7 +139,7 @@ export type MultiSelectCell = CustomCell<MultiSelectCellProps>;
 
 const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = p => {
     const { value: cell, initialValue, onChange, onFinishedEditing, portalElementRef } = p;
-    const { options: optionsIn, values: valuesIn, allowCreation, allowDuplicates } = cell.data;
+    const { options: optionsIn, values: valuesIn, allowCreation, allowDuplicates, allowMultiSelect = true } = cell.data;
 
     const theme = useTheme();
     const [value, setValue] = React.useState(valuesIn);
@@ -337,7 +344,7 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = p => {
         <Wrap onKeyDown={onKeyDown} data-testid={"multi-select-cell"}>
             <SelectComponent
                 className="gdg-multi-select"
-                isMulti={true}
+                isMulti={allowMultiSelect}
                 isDisabled={cell.readonly}
                 isClearable={true}
                 isSearchable={true}
@@ -360,7 +367,7 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = p => {
                 autoFocus={true}
                 openMenuOnFocus={true}
                 openMenuOnClick={true}
-                closeMenuOnSelect={true}
+                closeMenuOnSelect={allowMultiSelect ? true : true}
                 backspaceRemovesValue={true}
                 escapeClearsValue={false}
                 styles={colorStyles}
@@ -382,7 +389,31 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = p => {
                     if (e === null) {
                         return;
                     }
-                    submitValues(e.map(x => x.value));
+                    // Handle both single and multi select
+                    let newValues: string[];
+                    if (allowMultiSelect) {
+                        // Multi select: e is an array
+                        if (Array.isArray(e)) {
+                            newValues = e.map(x => x.value);
+                        } else {
+                            newValues = [];
+                        }
+                    } else {
+                        // Single select: e is a single object
+                        if (Array.isArray(e)) {
+                            // In case react-select returns array even in single mode
+                            newValues = e.length > 0 ? [e[e.length - 1].value] : [];
+                        } else {
+                            // Single object
+                            newValues = [(e as any).value];
+                        }
+                    }
+                    submitValues(newValues);
+                    
+                    // Auto finish editing in single select mode after selection
+                    if (!allowMultiSelect && newValues.length > 0) {
+                        onFinishedEditing(cell, [0, 1]);
+                    }
                 }}
             />
         </Wrap>
@@ -394,7 +425,7 @@ const renderer: CustomRenderer<MultiSelectCell> = {
     isMatch: (c): c is MultiSelectCell => (c.data as any).kind === "multi-select-cell",
     draw: (args, cell) => {
         const { ctx, theme, rect, highlighted } = args;
-        const { values, options: optionsIn } = cell.data;
+        const { values, options: optionsIn, allowMultiSelect = true, allowWrapping } = cell.data;
 
         if (values === undefined || values === null) {
             return true;
@@ -402,21 +433,49 @@ const renderer: CustomRenderer<MultiSelectCell> = {
 
         const options = prepareOptions(optionsIn ?? []);
 
+        // Single select mode: draw as text cell with wrapping support
+        if (!allowMultiSelect) {
+            if (values.length === 0) {
+                return true;
+            }
+            const matchedOption = options.find(opt => opt.value === values[0]);
+            const displayText = matchedOption?.label ?? values[0];
+            drawTextCell(args, displayText, cell.contentAlign, allowWrapping);
+            return true;
+        }
+
+        // Multi select mode: draw as bubbles with auto-wrapping
         const drawArea: Rectangle = {
             x: rect.x + theme.cellHorizontalPadding,
             y: rect.y + theme.cellVerticalPadding,
             width: rect.width - 2 * theme.cellHorizontalPadding,
             height: rect.height - 2 * theme.cellVerticalPadding,
         };
-        const rows = Math.max(1, Math.floor(drawArea.height / (theme.bubbleHeight + theme.bubblePadding)));
+
+        // Pre-calculate required rows by simulating layout
+        let simulateX = 0;
+        let requiredRows = 1;
+        for (const value of values) {
+            const matchedOption = options.find(t => t.value === value);
+            const displayText = matchedOption?.label ?? value;
+            const metrics = measureTextCached(displayText, ctx);
+            const width = metrics.width + theme.bubblePadding * 2;
+
+            // Check if bubble fits on current row
+            if (simulateX > 0 && simulateX + width > drawArea.width) {
+                requiredRows++;
+                simulateX = 0;
+            }
+            simulateX += width + theme.bubbleMargin;
+        }
 
         let { x } = drawArea;
         let row = 1;
 
-        let y =
-            rows === 1
-                ? drawArea.y + (drawArea.height - theme.bubbleHeight) / 2
-                : drawArea.y + (drawArea.height - rows * theme.bubbleHeight - (rows - 1) * theme.bubblePadding) / 2;
+        // Calculate starting Y position with proper vertical centering
+        const contentHeight = requiredRows * theme.bubbleHeight + (requiredRows - 1) * theme.bubblePadding;
+        let y = drawArea.y + Math.max(0, (drawArea.height - contentHeight) / 2);
+
         for (const value of values) {
             const matchedOption = options.find(t => t.value === value);
             const color = matchedOption?.color ?? (highlighted ? theme.bgBubbleSelected : theme.bgBubble);
@@ -425,7 +484,8 @@ const renderer: CustomRenderer<MultiSelectCell> = {
             const width = metrics.width + theme.bubblePadding * 2;
             const textY = theme.bubbleHeight / 2;
 
-            if (x !== drawArea.x && x + width > drawArea.x + drawArea.width && row < rows) {
+            // Wrap to next line if bubble doesn't fit (no row limit!)
+            if (x !== drawArea.x && x + width > drawArea.x + drawArea.width) {
                 row++;
                 y += theme.bubbleHeight + theme.bubblePadding;
                 x = drawArea.x;
@@ -446,7 +506,9 @@ const renderer: CustomRenderer<MultiSelectCell> = {
             ctx.fillText(displayText, x + theme.bubblePadding, y + textY + getMiddleCenterBias(ctx, theme));
 
             x += width + theme.bubbleMargin;
-            if (x > drawArea.x + drawArea.width + theme.cellHorizontalPadding && row >= rows) {
+
+            // Stop rendering if we've exceeded the available height
+            if (y + theme.bubbleHeight > drawArea.y + drawArea.height) {
                 break;
             }
         }
@@ -454,12 +516,29 @@ const renderer: CustomRenderer<MultiSelectCell> = {
         return true;
     },
     measure: (ctx, cell, theme) => {
-        const { values, options } = cell.data;
+        const { values, options, allowMultiSelect = true, allowWrapping } = cell.data;
 
         if (!values) {
             return theme.cellHorizontalPadding * 2;
         }
 
+        // Single select mode: measure as text with wrapping support
+        if (!allowMultiSelect) {
+            if (values.length === 0) {
+                return theme.cellHorizontalPadding * 2;
+            }
+            const matchedOption = prepareOptions(options ?? []).find(opt => opt.value === values[0]);
+            const displayText = matchedOption?.label ?? values[0];
+            // ✅ Support allowWrapping: measure all lines if wrapping enabled
+            const lines = displayText.split("\n", allowWrapping !== false ? undefined : 1);
+            let maxLineWidth = 0;
+            for (const line of lines) {
+                maxLineWidth = Math.max(maxLineWidth, ctx.measureText(line).width);
+            }
+            return maxLineWidth + theme.cellHorizontalPadding * 2;
+        }
+
+        // Multi select mode: measure bubbles
         // Resolve the values to the actual display labels:
         const labels = resolveValues(values, prepareOptions(options ?? []), cell.data.allowDuplicates).map(
             x => x.label ?? x.value
@@ -489,6 +568,8 @@ const renderer: CustomRenderer<MultiSelectCell> = {
         }),
     }),
     onPaste: (val: string, cell: MultiSelectCellProps) => {
+        const { allowMultiSelect = true } = cell;
+        
         if (!val || !val.trim()) {
             // Empty values should result in empty strings
             return {
@@ -509,6 +590,11 @@ const renderer: CustomRenderer<MultiSelectCell> = {
             values = values.filter(v => options.find(o => o.value === v));
         }
 
+        // Single select mode: only keep the first value
+        if (!allowMultiSelect && values.length > 0) {
+            values = [values[0]];
+        }
+
         if (values.length === 0) {
             // We were not able to parse any values, return undefined to
             // not change the cell value.
@@ -522,3 +608,62 @@ const renderer: CustomRenderer<MultiSelectCell> = {
 };
 
 export default renderer;
+
+/**
+ * Type guard to check if a cell is a multi-select cell
+ */
+export function isMultiSelectCell(cell: CustomCell): cell is MultiSelectCell {
+    return (cell.data as any).kind === "multi-select-cell";
+}
+
+/**
+ * Measures the required height for a multi-select cell with bubble wrapping.
+ * This function simulates the bubble layout algorithm to pre-calculate how many rows
+ * are needed to display all bubbles, enabling proper auto row height calculation.
+ *
+ * @param ctx Canvas rendering context for text measurement
+ * @param theme Theme configuration with bubble styling
+ * @param cell The multi-select cell to measure
+ * @param availableWidth The available width for the cell content (excluding padding)
+ * @returns The required height in pixels
+ */
+export function measureMultiSelectCellHeight(
+    ctx: CanvasRenderingContext2D,
+    theme: FullTheme,
+    cell: MultiSelectCell,
+    availableWidth: number
+): number {
+    const { values, options: optionsIn, allowMultiSelect = true } = cell.data;
+
+    // Default height for empty or single-select cells
+    if (!values || values.length === 0 || !allowMultiSelect) {
+        return theme.cellVerticalPadding * 2 + theme.bubbleHeight;
+    }
+
+    const options = prepareOptions(optionsIn ?? []);
+    const labels = resolveValues(values, options, cell.data.allowDuplicates).map(
+        x => x.label ?? x.value
+    );
+
+    // Simulate bubble layout to count required rows
+    let x = 0;
+    let rows = 1;
+
+    for (const label of labels) {
+        const metrics = ctx.measureText(label);
+        const bubbleWidth = metrics.width + theme.bubblePadding * 2;
+
+        // Check if bubble fits on current row
+        if (x > 0 && x + bubbleWidth > availableWidth) {
+            // Move to next row
+            rows++;
+            x = 0;
+        }
+
+        x += bubbleWidth + theme.bubbleMargin;
+    }
+
+    // Calculate total height based on rows
+    const totalBubbleHeight = rows * theme.bubbleHeight + (rows - 1) * theme.bubblePadding;
+    return totalBubbleHeight + theme.cellVerticalPadding * 2;
+}

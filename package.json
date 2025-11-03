@@ -1,10 +1,12 @@
 {
     "name": "excel-canvas-workspace",
-    "version": "1.0.0",
+    "version": "1.1.13",
     "scripts": {
         "start": "npm run storybook",
         "version": "./update-version.sh",
         "build": "npm run build --workspaces && npm run lint --workspaces",
+        "publish": "npm run build && npm run publish:packages",
+        "publish:packages": "cd packages/core && npm publish --access public && cd ../cells && npm publish --access public && cd ../source && npm publish --access public",
         "typedoc": "typedoc --readme none --disableSources --tsconfig packages/core/tsconfig.json",
         "serve-docs": "http-server packages/core/gen-docs",
         "storybook:run": "storybook dev -p 9009 --no-open",
