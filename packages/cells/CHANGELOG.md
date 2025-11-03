@@ -2,32 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.13] - 2025-11-03
-
-### Added
-- **MultiSelectCell**: Export `measureMultiSelectCellHeight` helper function for calculating required height with bubble wrapping
-- **MultiSelectCell**: Export `isMultiSelectCell` type guard for runtime type checking
-- **DatePickerCell**: New `allowWrapping` property to control text wrapping in date display
+## [1.1.16] - 2025-11-03
 
 ### Fixed
-- **MultiSelectCell**: Fix bubble wrapping in multi-select mode - now properly wraps to multiple rows without row limit
-- **MultiSelectCell**: Fix vertical centering of multi-row bubbles
-- **MultiSelectCell**: Fix single-select mode rendering to use `drawTextCell` with wrapping support
-- **MultiSelectCell**: Fix `onPaste` to only keep first value in single-select mode
-- **MultiSelectCell**: Fix `onChange` handler to properly handle both single and multi-select modes
-- **MultiSelectCell**: Auto-close editor after selection in single-select mode
-- **DatePickerCell**: Add proper wrapping support in `measure()` function
+- Fix MultiSelectCell editor to use updated cell values when finishing edit
+  - Now correctly passes updated values in `onFinishedEditing` callback
+  - Fixes issue where pressing Enter/Tab would save old values
 
 ### Changed
-- **MultiSelectCell**: Single-select mode now renders as text (with wrapping support) instead of bubbles
-- **MultiSelectCell**: Multi-select mode bubbles now wrap to unlimited rows based on content
-- **MultiSelectCell**: `allowMultiSelect` defaults to `true` (multi-select mode)
-- **MultiSelectCell**: `allowWrapping` defaults to `true` for single-select text display
-- Updated dependency: `excel-canvas` to `1.1.13`
+- Updated dependency: `excel-canvas` to `1.1.16`
 
-### Tests
-- Add comprehensive test suite for single-select mode (`multi-select-single-mode.test.tsx`)
-- Test single value selection, value replacement, creation mode, and paste behavior
+## [1.1.13] - 2025-11-03
+
+### Fixed
+- **MultiSelectCell**: Fix editor not using updated values on finish (enter/tab key)
+- **MultiSelectCell**: Fix bubble wrapping - now wraps to unlimited rows
+- **MultiSelectCell**: Fix vertical centering of multi-row bubbles
+- **MultiSelectCell**: Fix single-select mode to render as text with wrapping
+- **DatePickerCell**: Add wrapping support in measure function
+
+### Changed
+- **MultiSelectCell**: Single-select renders as text, multi-select as bubbles
+- Updated dependency: `excel-canvas` to `1.1.13`
 
 ## [1.1.0] - 2025-11-03
 

@@ -40,10 +40,10 @@ export function measureColumn(
         selectedData === undefined
             ? []
             : selectedData.map(row => {
-                  const r = measureCell(ctx, row[colIndex], theme, getCellRenderer);
-                  max = Math.max(max, r);
-                  return r;
-              });
+                const r = measureCell(ctx, row[colIndex], theme, getCellRenderer);
+                max = Math.max(max, r);
+                return r;
+            });
 
     if (sizes.length > 5 && removeOutliers) {
         max = 0;
@@ -202,6 +202,16 @@ export function useColumnSizer(
                     };
                 }
 
+                // ✅ NEW STRATEGY: If column has grow, use smaller initial width
+                // This ensures totalWidth < clientWidth so grow distribution works
+                if (c.grow !== undefined && c.grow > 0) {
+                    return {
+                        ...c,
+                        width: 120, // Small initial width for growable columns
+                    };
+                }
+
+                // No grow: measure actual content width
                 const r = measureColumn(
                     ctx,
                     theme,
@@ -229,15 +239,18 @@ export function useColumnSizer(
                 distribute.push(i);
             }
         }
+
         if (totalWidth < clientWidth && distribute.length > 0) {
             const writeable = [...result];
             const extra = clientWidth - totalWidth;
             let remaining = extra;
+
             for (let di = 0; di < distribute.length; di++) {
                 const i = distribute[di];
                 const weighted = (result[i].grow ?? 0) / totalGrow;
                 const toAdd =
                     di === distribute.length - 1 ? remaining : Math.min(remaining, Math.floor(extra * weighted));
+
                 writeable[i] = {
                     ...result[i],
                     growOffset: toAdd,

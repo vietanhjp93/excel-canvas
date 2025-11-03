@@ -124,35 +124,26 @@ export const uriCellRenderer: InternalCellRenderer<UriCell> = {
     },
     measure: (ctx, cell, theme) => {
         const txt = cell.displayData ?? cell.data;
+        const lines = txt.split("\n", cell.allowWrapping !== false ? undefined : 1);
+        let maxLineWidth = 0;
+        for (const line of lines) {
+            maxLineWidth = Math.max(maxLineWidth, ctx.measureText(line).width);
+        }
 
-        if (cell.allowWrapping === false) {
-            // When wrapping disabled, return full text width (expand column to fit)
-            const lines = txt.split("\n", 1);
-            let maxLineWidth = 0;
-            for (const line of lines) {
-                maxLineWidth = Math.max(maxLineWidth, ctx.measureText(line).width);
+        // ✅ Cap width only for very long text (when wrapping enabled)
+        if (cell.allowWrapping !== false && maxLineWidth > 500) {
+            // Find longest word to avoid breaking words
+            const words = txt.split(/\s+/);
+            let longestWord = 0;
+            for (const word of words) {
+                longestWord = Math.max(longestWord, ctx.measureText(word).width);
             }
-            return maxLineWidth + 2 * theme.cellHorizontalPadding;
+
+            // Cap at 500px, but ensure longest word fits
+            return Math.max(longestWord, Math.min(maxLineWidth, 500)) + 2 * theme.cellHorizontalPadding;
         }
 
-        // When wrapping enabled, return preferred width (not required width)
-        // Find longest word to avoid breaking words
-        const words = txt.split(/\s+/);
-        let longestWord = 0;
-        for (const word of words) {
-            longestWord = Math.max(longestWord, ctx.measureText(word).width);
-        }
-
-        // Return reasonable preferred width: longest word or 200px, capped at 400px
-        const minPreferredWidth = 200;
-        const maxPreferredWidth = 400;
-        const preferredContentWidth = Math.max(
-            longestWord,
-            Math.min(minPreferredWidth, maxPreferredWidth)
-        );
-        const cappedWidth = Math.min(preferredContentWidth, maxPreferredWidth);
-
-        return cappedWidth + 2 * theme.cellHorizontalPadding;
+        return maxLineWidth + 2 * theme.cellHorizontalPadding;
     },
     onDelete: c => ({
         ...c,

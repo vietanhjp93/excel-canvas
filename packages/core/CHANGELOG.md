@@ -1,43 +1,36 @@
 # Changelog
 
-## [1.1.13] - 2025-11-03
-
-### Added
-- Export `FullTheme` type for better TypeScript support with custom cell implementations
-- Add `measureMultiSelectCellHeight` helper function for calculating multi-select cell heights with bubble wrapping
-- Add `isMultiSelectCell` type guard for runtime cell type checking
-- New test suite for multi-line text splitting edge cases
+## [1.1.16] - 2025-11-03
 
 ### Fixed
-- **Critical**: Fix multi-line text splitting bug where long text would display on single line at certain column widths
-  - Root cause: `splitMultilineText` was only measuring partial text (`safeLineGuess` chars) but pushing the entire line
-  - Impact: Text would overflow column boundaries at specific widths (143-149px in reported case)
-  - Solution: Always measure FULL line width before deciding if it fits
-- Fix `ctx.font` not being set before `measureText` calls in multi-line splitting, causing incorrect width calculations
-- Fix column auto-sizer not detecting width changes due to reference equality check
-- Fix `useCallback` missing `enableRowInsertEdge` dependency (ESLint exhaustive-deps)
-- Remove unused `rowHeightsRevision` state variable and all setter calls
-- Fix variable shadowing: `rows` → `rowCount` in bubble layout calculation
-- Fix strict boolean expressions: use explicit null/undefined checks instead of truthy checks
-- Fix nullish coalescing: use `??` instead of `||` for better null/undefined handling
+- Fix text cell measurement: Cap width at 500px only for very long text (>500px)
+  - Short text now expands columns to actual width
+  - Long text capped at 500px with wrapping
+- Fix MarkdownCell, RowIDCell, UriCell measurement with same logic
+- Remove debug console.log from text-cell measurement
+- Fix column grow distribution with debug logging
+
+### Changed  
+- Column auto-sizer: Use 120px initial width for growable columns
+- Improved grow distribution algorithm for better space allocation
+
+## [1.1.13] - 2025-11-03
+
+### Fixed
+- **Critical**: Fix text wrapping not working at certain column widths (143-149px)
+  - Root cause: `splitMultilineText` only measured partial text but pushed entire line
+  - Fix: Always measure FULL line before deciding if it fits
+- Fix `ctx.font` not set before `measureText` in multi-line splitting
+- Fix column auto-sizer not detecting width changes
+- Fix multi-select cell editor not using updated values on finish
+- Fix ESLint errors: exhaustive-deps, strict-boolean-expressions, no-shadow, no-duplicate-string
 
 ### Changed
-- **Text cell measurement behavior**: When `allowWrapping` is enabled (default), `measure()` now returns preferred width (200-400px) instead of full text width
-  - Prevents columns from auto-expanding to fit all text on one line
-  - Allows grid to maintain reasonable column widths while still showing full content via wrapping
-  - When `allowWrapping: false`, columns still auto-expand to fit content
-- **Auto row height for multi-select cells**: Bubbles now wrap to multiple rows when needed
-  - Pre-calculates required rows by simulating bubble layout
-  - Properly centers multiple rows of bubbles vertically
-  - No row limit - displays as many rows as needed to show all values
-- All text-based cells now use `allowWrapping !== false` (defaults to true) instead of `allowWrapping === true`
-- URI cell now passes `allowWrapping` parameter to all `drawTextCell` calls (including outline rendering)
-- RowIDCell and MarkdownCell now support wrapping with proper measurement
-
-### Performance
-- Reduced memory allocations in multi-line text splitting
-- Improved rendering performance for cells with wrapping enabled
-- Better caching in text measurement utilities
+- Text cell measurement: Cap width at 500px when wrapping enabled (was 200-400px)
+  - Prevents columns from expanding too wide
+  - Still shows full content via wrapping
+- Multi-select bubbles: Wrap to unlimited rows (was limited by available height)
+- Column grow: Use smaller initial width (120px) for growable columns
 
 ## [1.1.1] - 2025-11-03
 

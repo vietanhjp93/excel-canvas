@@ -324,7 +324,14 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = p => {
                 if (!inputValue) {
                     // If the user pressed enter or tab without entering anything,
                     // we finish editing based on the current state.
-                    onFinishedEditing(cell, [0, 1]);
+                    // ✅ FIX: Use local state value instead of prop cell
+                    onFinishedEditing({
+                        ...cell,
+                        data: {
+                            ...cell.data,
+                            values: value ?? [],
+                        },
+                    }, [0, 1]);
                     return;
                 }
 
@@ -409,10 +416,17 @@ const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = p => {
                         }
                     }
                     submitValues(newValues);
-                    
+
                     // Auto finish editing in single select mode after selection
+                    // ✅ FIX: Use updated cell with new values instead of prop cell
                     if (!allowMultiSelect && newValues.length > 0) {
-                        onFinishedEditing(cell, [0, 1]);
+                        onFinishedEditing({
+                            ...cell,
+                            data: {
+                                ...cell.data,
+                                values: newValues,
+                            },
+                        }, [0, 1]);
                     }
                 }}
             />
