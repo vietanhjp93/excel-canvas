@@ -81,7 +81,7 @@ const GridScroller: React.FunctionComponent<ScrollingDataGridProps> = p => {
         enableGroups,
         freezeColumns,
         experimental,
-        nonGrowWidth,
+        nonGrowWidth: _nonGrowWidth, // Not used - see width calculation below
         clientSize,
         className,
         onVisibleRegionChanged,
@@ -104,7 +104,16 @@ const GridScroller: React.FunctionComponent<ScrollingDataGridProps> = p => {
     const lastY = React.useRef<number | undefined>();
     const lastSize = React.useRef<readonly [number, number] | undefined>();
 
-    const width = nonGrowWidth + Math.max(0, overscrollX ?? 0);
+    // BUG FIX: nonGrowWidth is the total width BEFORE grow distribution,
+    // but columns array has already been grown. Using nonGrowWidth creates a mismatch
+    // between scroll container width and actual content width, causing horizontal
+    // scroll layout issues especially visible when autoRowHeight=true triggers re-renders.
+    // We must calculate actual total width from the columns array which includes growOffset.
+    let actualTotalWidth = 0;
+    for (const c of columns) {
+        actualTotalWidth += c.width;
+    }
+    const width = actualTotalWidth + Math.max(0, overscrollX ?? 0);
 
     let height = enableGroups ? headerHeight + groupHeaderHeight : headerHeight;
     if (typeof rowHeight === "number") {
