@@ -210,7 +210,7 @@ export function getEffectiveColumns(
         src: number;
         dest: number;
     },
-    tx?: number
+    _tx?: number  // Deprecated: translateX should not be used for calculating visible columns
 ): readonly MappedGridColumn[] {
     const mappedCols = remapForDnDState(columns, dndState);
 
@@ -228,7 +228,12 @@ export function getEffectiveColumns(
         }
     }
     let endIndex = cellXOffset;
-    let curX = tx ?? 0;
+    // BUG FIX: Do NOT use tx (translateX) here. translateX is a rendering offset,
+    // not a scroll position. When tx is negative (smooth scroll offset), it incorrectly
+    // causes the loop to think there's extra space and includes more columns than should
+    // be visible, causing horizontal scroll layout bugs.
+    // We should calculate visible columns based purely on viewport width and column widths.
+    let curX = 0;
 
     while (curX <= width && endIndex < mappedCols.length) {
         curX += mappedCols[endIndex].width;
