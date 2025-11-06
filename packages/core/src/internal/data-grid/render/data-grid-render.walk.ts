@@ -74,14 +74,39 @@ export function walkColumns(
     let x = 0;
     let clipX = 0; // this tracks the total width of sticky cols
     const drawY = totalHeaderHeight + translateY;
+
+    const walkDebug: Array<{sourceIdx: number; x: number; drawX: number; width: number; sticky: boolean; growOffset?: number}> = [];
+
     for (const c of effectiveCols) {
         const drawX = c.sticky ? clipX : x + translateX;
+
+        walkDebug.push({
+            sourceIdx: c.sourceIndex,
+            x,
+            drawX,
+            width: c.width,
+            sticky: c.sticky,
+            growOffset: c.growOffset
+        });
+
         if (cb(c, drawX, drawY, c.sticky ? 0 : clipX, cellYOffset) === true) {
             break;
         }
 
         x += c.width;
         clipX += c.sticky ? c.width : 0;
+    }
+
+    if (walkDebug.length > 0) {
+        // eslint-disable-next-line no-console
+        console.log('[SCROLL-DEBUG] walkColumns:', {
+            translateX,
+            translateY,
+            totalHeaderHeight,
+            cellYOffset,
+            effectiveColsCount: effectiveCols.length,
+            columns: walkDebug.slice(0, 8) // First 8 columns
+        });
     }
 }
 
