@@ -131,13 +131,28 @@ fi
 
 if [[ "$AUTO_PUBLISH" == true ]]; then
     echo ""
+    echo -e "${BLUE}📄 Syncing README to packages...${NC}"
+    cp README.md packages/core/README.md
+    cp README.md packages/cells/README.md
+    cp README.md packages/source/README.md
+    
     echo -e "${BLUE}🏗️  Building...${NC}"
     npm run build --workspaces
     
-    echo -e "${BLUE}📦 Publishing...${NC}"
+    echo ""
+    echo -e "${BLUE}📦 Publishing core...${NC}"
     cd packages/core && npm publish --access public
+    cd ../..
     
-    echo -e "${GREEN}✅ Published!${NC}"
+    echo -e "${BLUE}📦 Publishing cells...${NC}"
+    cd packages/cells && npm publish --access public
+    cd ../..
+    
+    echo -e "${BLUE}📦 Publishing source...${NC}"
+    cd packages/source && npm publish --access public
+    cd ../..
+    
+    echo -e "${GREEN}✅ All packages published!${NC}"
     echo -e "${YELLOW}Push: git push && git push --tags${NC}"
 else
     echo ""
