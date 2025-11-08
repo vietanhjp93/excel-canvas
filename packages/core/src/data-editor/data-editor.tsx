@@ -55,10 +55,7 @@ import {
     getEmHeight,
 } from "../internal/data-grid/render/data-grid-lib.js";
 import { splitMultilineText } from "../internal/data-grid/render/multi-line-split.js";
-import {
-    getRowMarkerEdgeHover,
-    type RowMarkerEdgeHover,
-} from "../internal/data-grid/row-marker-edge.js";
+import { getRowMarkerEdgeHover, type RowMarkerEdgeHover } from "../internal/data-grid/row-marker-edge.js";
 import { GroupRename } from "./group-rename.js";
 import { measureColumn, useColumnSizer } from "./use-column-sizer.js";
 import { isHotkey } from "../common/is-hotkey.js";
@@ -120,7 +117,12 @@ interface MouseState {
 }
 
 const edgeHoverEquals = (a?: RowMarkerEdgeHover, b?: RowMarkerEdgeHover) =>
-    a === b || (a !== undefined && b !== undefined && a.row === b.row && a.position === b.position && a.insertIndex === b.insertIndex);
+    a === b ||
+    (a !== undefined &&
+        b !== undefined &&
+        a.row === b.row &&
+        a.position === b.position &&
+        a.insertIndex === b.insertIndex);
 
 type Props = Partial<
     Omit<
@@ -1554,7 +1556,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
             let maxHeight = baseRowHeight(row);
             const processedSpans = new Set<string>();
-            const cellHeights: Array<{col: number; height: number; kind: string}> = [];
+            const cellHeights: Array<{ col: number; height: number; kind: string }> = [];
 
             for (let col = rowMarkerOffset; col < mangledCols.length; col++) {
                 const column = mangledCols[col];
@@ -1613,20 +1615,14 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     }
                     case GridCellKind.Number: {
                         const display = cell.displayData ?? (cell.data !== undefined ? String(cell.data) : "");
-                        estimatedHeight = computeTextCellHeight(
-                            ctx,
-                            display,
-                            false,
-                            availableWidth,
-                            emHeight,
-                            lineGap
-                        );
+                        estimatedHeight = computeTextCellHeight(ctx, display, false, availableWidth, emHeight, lineGap);
                         break;
                     }
                     case GridCellKind.RowID:
                     case GridCellKind.Markdown:
                     case GridCellKind.Uri: {
-                        const content = (cell as { displayData?: string; data?: string }).displayData ??
+                        const content =
+                            (cell as { displayData?: string; data?: string }).displayData ??
                             (cell as { data?: string }).data ??
                             "";
                         const allowWrapping = (cell as { allowWrapping?: boolean }).allowWrapping !== false;
@@ -1668,9 +1664,10 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                                         const optValue = typeof opt === "string" ? opt : opt?.value;
                                         return optValue === value;
                                     });
-                                    const displayText = typeof matchedOption === "string"
-                                        ? matchedOption
-                                        : matchedOption?.label ?? value;
+                                    const displayText =
+                                        typeof matchedOption === "string"
+                                            ? matchedOption
+                                            : (matchedOption?.label ?? value);
 
                                     // Measure bubble width
                                     const metrics = ctx.measureText(displayText);
@@ -1686,8 +1683,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                                 }
 
                                 // Calculate total height
-                                const totalBubbleHeight = rowCount * mergedTheme.bubbleHeight +
-                                    (rowCount - 1) * mergedTheme.bubblePadding;
+                                const totalBubbleHeight =
+                                    rowCount * mergedTheme.bubbleHeight + (rowCount - 1) * mergedTheme.bubblePadding;
                                 estimatedHeight = totalBubbleHeight + mergedTheme.cellVerticalPadding * 2;
                             }
                         }
@@ -1713,18 +1710,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
             ctx.restore();
 
-            // Log measurement details if row has tall cells
-            if (cellHeights.length > 0) {
-                // eslint-disable-next-line no-console
-                console.log(`[ROW-HEIGHT] measureRowHeight row=${row}:`, {
-                    maxHeight: Math.round(maxHeight),
-                    baseHeight: baseRowHeight(row),
-                    totalCols: mangledCols.length - rowMarkerOffset,
-                    tallCells: cellHeights.slice(0, 5), // First 5 tall cells
-                    columnsVersion: columnsVersionRef.current,
-                });
-            }
-
             return maxHeight;
         },
         [
@@ -1749,14 +1734,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             // Versioned cache approach: if version is stale or no cache, update unconditionally
             // This allows heights to increase OR decrease when columns change (resize, reorder, etc.)
             if (cached === undefined || cached.columnsVersion !== columnsVersionRef.current) {
-                // eslint-disable-next-line no-console
-                console.log(`[ROW-HEIGHT] ensureRowHeight row=${row} rowKey=${rowKey} UPDATE:`, {
-                    reason: cached === undefined ? 'no-cache' : 'version-mismatch',
-                    oldHeight: cached?.height,
-                    newHeight: Math.round(next),
-                    oldVersion: cached?.columnsVersion,
-                    currentVersion: columnsVersionRef.current,
-                });
                 rowHeightsRef.current.set(rowKey, {
                     height: next,
                     columnsVersion: columnsVersionRef.current,
@@ -1766,14 +1743,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
             // If version is current and height changed significantly, update
             if (Math.abs(cached.height - next) > 0.5) {
-                // eslint-disable-next-line no-console
-                console.log(`[ROW-HEIGHT] ensureRowHeight row=${row} rowKey=${rowKey} UPDATE:`, {
-                    reason: 'height-changed',
-                    oldHeight: Math.round(cached.height),
-                    newHeight: Math.round(next),
-                    diff: Math.round(next - cached.height),
-                    version: columnsVersionRef.current,
-                });
                 rowHeightsRef.current.set(rowKey, {
                     height: next,
                     columnsVersion: columnsVersionRef.current,
@@ -1804,41 +1773,19 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
         // Create signature from column widths and order
         // Format: "width1,width2,width3,..."
-        const currentSignature = mangledCols.map(c => c.width).join(',');
+        const currentSignature = mangledCols.map(c => c.width).join(",");
 
         // Only increment version if signature actually changed
         if (currentSignature === prevColumnsSignature.current) {
-            // eslint-disable-next-line no-console
-            console.log('[ROW-HEIGHT] Columns reference changed but widths unchanged - skipping version increment:', {
-                version: columnsVersionRef.current,
-                columnsCount: mangledCols.length,
-            });
             return;
         }
 
-        const oldVersion = columnsVersionRef.current;
-        const oldSignature = prevColumnsSignature.current;
         columnsVersionRef.current++;
         prevColumnsSignature.current = currentSignature;
-
-        // eslint-disable-next-line no-console
-        console.log('[ROW-HEIGHT] Columns ACTUALLY changed - incrementing version:', {
-            oldVersion,
-            newVersion: columnsVersionRef.current,
-            columnsCount: mangledCols.length,
-            cacheSize: rowHeightsRef.current.size,
-            oldSignature: oldSignature.slice(0, 50) + '...',
-            newSignature: currentSignature.slice(0, 50) + '...',
-        });
 
         // Eagerly remeasure visible rows with new column configuration
         const region = visibleRegionRef.current;
         if (region !== undefined) {
-            // eslint-disable-next-line no-console
-            console.log('[ROW-HEIGHT] Remeasuring visible rows:', {
-                startRow: region.y,
-                endRow: Math.min(rows, region.y + region.height + 1),
-            });
             measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
         }
     }, [mangledCols, autoRowHeight, measureRowsInRange, rows]);
@@ -1850,13 +1797,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             return;
         }
 
-        // eslint-disable-next-line no-console
-        console.log('[ROW-HEIGHT] Data/Theme changed - clearing cache:', {
-            rows,
-            cacheSize: rowHeightsRef.current.size,
-            version: columnsVersionRef.current,
-        });
-
         // Clear entire cache on structural changes
         rowHeightsRef.current.clear();
         // Note: version is NOT reset, so rows will remeasure with current column configuration
@@ -1864,11 +1804,6 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         // Remeasure visible rows
         const region = visibleRegionRef.current;
         if (region !== undefined) {
-            // eslint-disable-next-line no-console
-            console.log('[ROW-HEIGHT] Remeasuring visible rows after clear:', {
-                startRow: region.y,
-                endRow: Math.min(rows, region.y + region.height + 1),
-            });
             measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
         }
     }, [rows, mergedTheme, autoRowHeight, measureRowsInRange]);
@@ -1938,9 +1873,11 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     );
 
     const setOverlaySimple = React.useCallback(
-        (val: Omit<OverlayState, "theme" | "selectionBehavior"> & {
-            selectionBehavior?: EditSelectionBehavior;
-        }) => {
+        (
+            val: Omit<OverlayState, "theme" | "selectionBehavior"> & {
+                selectionBehavior?: EditSelectionBehavior;
+            }
+        ) => {
             const [col, row] = val.cell;
             const column = mangledCols[col];
             const groupTheme =
@@ -1955,13 +1892,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 theme: mergeAndRealizeTheme(mergedTheme, groupTheme, colTheme, rowTheme, val.content.themeOverride),
             });
         },
-        [
-            editSelectionBehavior,
-            getRowThemeOverride,
-            mangledCols,
-            mangledGetGroupDetails,
-            mergedTheme,
-        ]
+        [editSelectionBehavior, getRowThemeOverride, mangledCols, mangledGetGroupDetails, mergedTheme]
     );
 
     const reselect = React.useCallback(
@@ -3118,15 +3049,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     : args.scrollEdge;
             });
         },
-        [
-            enableRowInsertEdge,
-            hasRowMarkers,
-            mouseState,
-            onMouseMove,
-            rowMarkerEdgeHover,
-            rowMarkerOffset,
-            rows,
-        ]
+        [enableRowInsertEdge, hasRowMarkers, mouseState, onMouseMove, rowMarkerEdgeHover, rowMarkerOffset, rows]
     );
 
     const onHeaderMenuClickInner = React.useCallback(
@@ -3207,9 +3130,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             // This prevents unnecessary row height recalculations during horizontal scroll which can cause
             // layout shifts due to floating point measurement variations.
             const oldRegion = visibleRegionRef.current;
-            const yRangeChanged = oldRegion === undefined ||
-                oldRegion.y !== newRegion.y ||
-                oldRegion.height !== newRegion.height;
+            const yRangeChanged =
+                oldRegion === undefined || oldRegion.y !== newRegion.y || oldRegion.height !== newRegion.height;
 
             visibleRegionRef.current = newRegion;
             setVisibleRegion(newRegion);
