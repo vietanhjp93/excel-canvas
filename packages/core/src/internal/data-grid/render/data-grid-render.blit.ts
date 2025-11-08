@@ -133,10 +133,15 @@ export function blitLastFrame(
             args.dx = (deltaX + stickyWidth) * dpr;
             args.dw = blitWidth * dpr;
 
+            // BUG FIX: Same as deltaX < 0, with smooth scroll, column positions shift.
+            // Redraw the entire non-sticky area to ensure all columns are rendered correctly.
+            const finalX = stickyWidth - 1;
+            const finalWidth = width - finalX;
+
             drawRegions.push({
-                x: stickyWidth - 1,
+                x: finalX,
                 y: 0,
-                width: deltaX + 2, // extra width to account for first col not drawing a left side border
+                width: finalWidth,
                 height: height,
             });
         } else if (deltaX < 0) {
@@ -146,10 +151,22 @@ export function blitLastFrame(
             args.dx = stickyWidth * dpr;
             args.dw = blitWidth * dpr;
 
+            // BUG FIX: With smooth scroll, translateX changes cause column positions to shift.
+            // Columns that were previously visible may now be drawn at different X positions.
+            // The blit optimization copies the old buffer, but due to the shift, columns in the
+            // MIDDLE of the viewport also need redrawn, not just the new strip on the right edge.
+            //
+            // Standard approach: only redraw narrow strip {x: width+deltaX, width: -deltaX}
+            // Problem: Columns drawn at positions outside this strip get skipped!
+            //
+            // Solution: Redraw the ENTIRE non-sticky area to ensure all effective columns are rendered
+            const finalX = stickyWidth - 1; // Start from sticky boundary (with -1 for border)
+            const finalWidth = width - finalX;
+
             drawRegions.push({
-                x: width + deltaX,
+                x: finalX,
                 y: 0,
-                width: -deltaX,
+                width: finalWidth,
                 height: height,
             });
         }

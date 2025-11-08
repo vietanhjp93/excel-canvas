@@ -210,32 +210,58 @@ export function getEffectiveColumns(
         src: number;
         dest: number;
     },
-    _tx?: number  // Deprecated: translateX should not be used for calculating visible columns
+    tx?: number
 ): readonly MappedGridColumn[] {
     const mappedCols = remapForDnDState(columns, dndState);
 
+    // CRITICAL: Keep original width before modifying it
+    // processArgs uses full viewport width to determine visibility,
+    // so we must match that behavior here
+    const fullViewportWidth = width;
+
     const sticky: MappedGridColumn[] = [];
+    let stickyWidth = 0;
     for (const c of mappedCols) {
         if (c.sticky) {
             sticky.push(c);
+            stickyWidth += c.width;
         } else {
             break;
         }
     }
-    if (sticky.length > 0) {
-        for (const c of sticky) {
-            width -= c.width;
-        }
-    }
+
     let endIndex = cellXOffset;
-    // BUG FIX: Do NOT use tx (translateX) here. translateX is a rendering offset,
-    // not a scroll position. When tx is negative (smooth scroll offset), it incorrectly
-    // causes the loop to think there's extra space and includes more columns than should
-    // be visible, causing horizontal scroll layout bugs.
-    // We should calculate visible columns based purely on viewport width and column widths.
     let curX = 0;
 
-    while (curX <= width && endIndex < mappedCols.length) {
+    // BUG FIX: When smooth scrolling is enabled, the first column may be partially visible.
+    // tx (translateX) is negative when content is shifted left (first column partially off-screen).
+    // We need to account for only the visible portion of the first column.
+    // Example: if column width is 120px and tx is -119, only 1px is visible.
+    if (endIndex < mappedCols.length && !mappedCols[endIndex].sticky) {
+        const firstCol = mappedCols[endIndex];
+        // tx is negative when the column is partially hidden to the left
+        // visible width = full width + tx (e.g., 120 + (-119) = 1px visible)
+        const visibleWidth = (tx !== undefined && tx < 0) ? firstCol.width + tx : firstCol.width;
+        curX = Math.max(0, visibleWidth);
+        endIndex++;
+    }
+
+    // BUG FIX v2: Must check column start position against FULL viewport width, not available width!
+    // processArgs uses: scrollX + fullViewportWidth > columnStart to determine visibility.
+    // We must use the same logic: curX (columnStart) < fullViewportWidth
+    // Changed from: curX <= availableWidth
+    // To: curX < fullViewportWidth
+    while (endIndex < mappedCols.length) {
+        if (mappedCols[endIndex].sticky) {
+            endIndex++;
+            continue;
+        }
+
+        // Column starts at curX. If curX >= fullViewportWidth, column is completely outside viewport
+        if (curX >= fullViewportWidth) {
+            break;
+        }
+
         curX += mappedCols[endIndex].width;
         endIndex++;
     }

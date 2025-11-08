@@ -459,6 +459,20 @@ export interface DataEditorProps extends Props, Pick<DataGridSearchProps, "image
      * @defaultValue false
      */
     readonly autoRowHeight?: boolean;
+    /** Returns a unique identifier for each row. Used to maintain stable row height cache across sorting/filtering.
+     * If not provided, row index will be used (cache will be invalidated on data changes).
+     * @group Data
+     * @param rowIndex - The row index (0-based)
+     * @returns Unique identifier for the row (e.g., fractional position, database ID, etc.)
+     * @example
+     * ```tsx
+     * <DataEditor
+     *   getRowId={(rowIndex) => myData[rowIndex].position}  // Fractional position
+     *   autoRowHeight={true}
+     * />
+     * ```
+     */
+    readonly getRowId?: (rowIndex: number) => string | number;
     /** Fires whenever the mouse moves
      * @group Events
      * @param args
@@ -975,6 +989,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         drawFocusRing: drawFocusRingIn = true,
         portalElementRef,
         enableRowInsertEdge = true, // ✅ NEW: Default true to keep existing behavior
+        getRowId, // 🎯 NEW: For stable row height caching across sorting/filtering
     } = p;
 
     const drawFocusRing = drawFocusRingIn === "no-editor" ? overlay === undefined : drawFocusRingIn;
@@ -1032,7 +1047,18 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         }
     }, [autoRowHeight]);
 
-    const rowHeightsRef = React.useRef<Map<number, number>>(new Map());
+    // Versioned row height cache - invalidates automatically when columns change
+    // Cache key can be either row index (number) or stable row ID (string | number from getRowId)
+    const rowHeightsRef = React.useRef<Map<string | number, { height: number; columnsVersion: number }>>(new Map());
+    const columnsVersionRef = React.useRef(0);
+
+    // Helper to get cache key for a row (use stable ID if provided, otherwise fall back to index)
+    const getRowKey = React.useCallback(
+        (rowIndex: number): string | number => {
+            return getRowId ? getRowId(rowIndex) : rowIndex;
+        },
+        [getRowId]
+    );
 
     const keybindings = useKeybindingsWithDefaults(keybindingsIn);
 
@@ -1528,10 +1554,13 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
             let maxHeight = baseRowHeight(row);
             const processedSpans = new Set<string>();
+            const cellHeights: Array<{col: number; height: number; kind: string}> = [];
 
             for (let col = rowMarkerOffset; col < mangledCols.length; col++) {
                 const column = mangledCols[col];
-                const cell = getMangledCellContent([col, row], true);
+                // 🎯 FIX: Use forceStrict=false to measure ALL columns (including those outside viewport)
+                // Auto row height MUST measure all cells to get correct max height, not just visible cells
+                const cell = getMangledCellContent([col, row], false);
 
                 if (cell.kind === InnerGridCellKind.Marker || cell.kind === InnerGridCellKind.NewRow) {
                     continue;
@@ -1671,9 +1700,31 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 if (estimatedHeight > maxHeight) {
                     maxHeight = estimatedHeight;
                 }
+
+                // Track cell heights for debugging
+                if (estimatedHeight > baseRowHeight(row)) {
+                    cellHeights.push({
+                        col: col - rowMarkerOffset,
+                        height: Math.round(estimatedHeight),
+                        kind: cell.kind,
+                    });
+                }
             }
 
             ctx.restore();
+
+            // Log measurement details if row has tall cells
+            if (cellHeights.length > 0) {
+                // eslint-disable-next-line no-console
+                console.log(`[ROW-HEIGHT] measureRowHeight row=${row}:`, {
+                    maxHeight: Math.round(maxHeight),
+                    baseHeight: baseRowHeight(row),
+                    totalCols: mangledCols.length - rowMarkerOffset,
+                    tallCells: cellHeights.slice(0, 5), // First 5 tall cells
+                    columnsVersion: columnsVersionRef.current,
+                });
+            }
+
             return maxHeight;
         },
         [
@@ -1692,12 +1743,44 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         (row: number) => {
             if (!autoRowHeight) return;
             const next = measureRowHeight(row);
-            const current = rowHeightsRef.current.get(row);
-            if (current === undefined || Math.abs(current - next) > 0.5) {
-                rowHeightsRef.current.set(row, next);
+            const rowKey = getRowKey(row); // 🎯 Use stable row ID for cache key
+            const cached = rowHeightsRef.current.get(rowKey);
+
+            // Versioned cache approach: if version is stale or no cache, update unconditionally
+            // This allows heights to increase OR decrease when columns change (resize, reorder, etc.)
+            if (cached === undefined || cached.columnsVersion !== columnsVersionRef.current) {
+                // eslint-disable-next-line no-console
+                console.log(`[ROW-HEIGHT] ensureRowHeight row=${row} rowKey=${rowKey} UPDATE:`, {
+                    reason: cached === undefined ? 'no-cache' : 'version-mismatch',
+                    oldHeight: cached?.height,
+                    newHeight: Math.round(next),
+                    oldVersion: cached?.columnsVersion,
+                    currentVersion: columnsVersionRef.current,
+                });
+                rowHeightsRef.current.set(rowKey, {
+                    height: next,
+                    columnsVersion: columnsVersionRef.current,
+                });
+                return;
+            }
+
+            // If version is current and height changed significantly, update
+            if (Math.abs(cached.height - next) > 0.5) {
+                // eslint-disable-next-line no-console
+                console.log(`[ROW-HEIGHT] ensureRowHeight row=${row} rowKey=${rowKey} UPDATE:`, {
+                    reason: 'height-changed',
+                    oldHeight: Math.round(cached.height),
+                    newHeight: Math.round(next),
+                    diff: Math.round(next - cached.height),
+                    version: columnsVersionRef.current,
+                });
+                rowHeightsRef.current.set(rowKey, {
+                    height: next,
+                    columnsVersion: columnsVersionRef.current,
+                });
             }
         },
-        [autoRowHeight, measureRowHeight]
+        [autoRowHeight, measureRowHeight, getRowKey]
     );
 
     const measureRowsInRange = React.useCallback(
@@ -1711,25 +1794,94 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         [autoRowHeight, ensureRowHeight, rows]
     );
 
+    // Track previous column configuration to detect REAL changes (not just reference changes)
+    const prevColumnsSignature = React.useRef<string>("");
+
+    // Increment version when columns ACTUALLY change (resize, reorder, add, delete)
+    // This invalidates all cached row heights, forcing remeasurement with new column widths
+    React.useEffect(() => {
+        if (!autoRowHeight) return;
+
+        // Create signature from column widths and order
+        // Format: "width1,width2,width3,..."
+        const currentSignature = mangledCols.map(c => c.width).join(',');
+
+        // Only increment version if signature actually changed
+        if (currentSignature === prevColumnsSignature.current) {
+            // eslint-disable-next-line no-console
+            console.log('[ROW-HEIGHT] Columns reference changed but widths unchanged - skipping version increment:', {
+                version: columnsVersionRef.current,
+                columnsCount: mangledCols.length,
+            });
+            return;
+        }
+
+        const oldVersion = columnsVersionRef.current;
+        const oldSignature = prevColumnsSignature.current;
+        columnsVersionRef.current++;
+        prevColumnsSignature.current = currentSignature;
+
+        // eslint-disable-next-line no-console
+        console.log('[ROW-HEIGHT] Columns ACTUALLY changed - incrementing version:', {
+            oldVersion,
+            newVersion: columnsVersionRef.current,
+            columnsCount: mangledCols.length,
+            cacheSize: rowHeightsRef.current.size,
+            oldSignature: oldSignature.slice(0, 50) + '...',
+            newSignature: currentSignature.slice(0, 50) + '...',
+        });
+
+        // Eagerly remeasure visible rows with new column configuration
+        const region = visibleRegionRef.current;
+        if (region !== undefined) {
+            // eslint-disable-next-line no-console
+            console.log('[ROW-HEIGHT] Remeasuring visible rows:', {
+                startRow: region.y,
+                endRow: Math.min(rows, region.y + region.height + 1),
+            });
+            measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
+        }
+    }, [mangledCols, autoRowHeight, measureRowsInRange, rows]);
+
+    // Clear cache when data structure or theme changes
     React.useEffect(() => {
         if (!autoRowHeight) {
             rowHeightsRef.current.clear();
             return;
         }
 
+        // eslint-disable-next-line no-console
+        console.log('[ROW-HEIGHT] Data/Theme changed - clearing cache:', {
+            rows,
+            cacheSize: rowHeightsRef.current.size,
+            version: columnsVersionRef.current,
+        });
+
+        // Clear entire cache on structural changes
         rowHeightsRef.current.clear();
+        // Note: version is NOT reset, so rows will remeasure with current column configuration
+
+        // Remeasure visible rows
         const region = visibleRegionRef.current;
         if (region !== undefined) {
+            // eslint-disable-next-line no-console
+            console.log('[ROW-HEIGHT] Remeasuring visible rows after clear:', {
+                startRow: region.y,
+                endRow: Math.min(rows, region.y + region.height + 1),
+            });
             measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
         }
-    }, [autoRowHeight, baseRowHeight, measureRowsInRange, rows, mangledCols, mergedTheme]);
+    }, [rows, mergedTheme, autoRowHeight, measureRowsInRange]);
 
     const effectiveRowHeight = React.useMemo(() => {
         if (!autoRowHeight) {
             return rowHeight;
         }
-        return (rowIndex: number) => rowHeightsRef.current.get(rowIndex) ?? baseRowHeight(rowIndex);
-    }, [autoRowHeight, baseRowHeight, rowHeight]);
+        return (rowIndex: number) => {
+            const rowKey = getRowKey(rowIndex); // 🎯 Use stable row ID for cache key
+            return rowHeightsRef.current.get(rowKey)?.height ?? baseRowHeight(rowIndex);
+        };
+    }, [autoRowHeight, baseRowHeight, rowHeight, getRowKey]);
 
     const mangledOnCellsEdited = React.useCallback<NonNullable<typeof onCellsEdited>>(
         (items: readonly EditListItem[]) => {
@@ -1748,6 +1900,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
             if (autoRowHeight) {
                 for (const i of mangledItems) {
+                    // Remeasure row height after cell edit
                     ensureRowHeight(i.location[1]);
                 }
             }
@@ -3049,10 +3202,19 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     freezeRegions,
                 },
             };
+
+            // BUG FIX: Only remeasure row heights when Y range (rows) changes, not when X range (columns) changes.
+            // This prevents unnecessary row height recalculations during horizontal scroll which can cause
+            // layout shifts due to floating point measurement variations.
+            const oldRegion = visibleRegionRef.current;
+            const yRangeChanged = oldRegion === undefined ||
+                oldRegion.y !== newRegion.y ||
+                oldRegion.height !== newRegion.height;
+
             visibleRegionRef.current = newRegion;
             setVisibleRegion(newRegion);
             setClientSize([clientWidth, clientHeight, rightElWidth]);
-            if (autoRowHeight) {
+            if (autoRowHeight && yRangeChanged) {
                 measureRowsInRange(newRegion.y, Math.min(rows, newRegion.y + newRegion.height + 1));
             }
             onVisibleRegionChanged?.(newRegion, newRegion.tx, newRegion.ty, newRegion.extras);

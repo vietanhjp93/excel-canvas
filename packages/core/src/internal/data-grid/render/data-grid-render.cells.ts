@@ -151,7 +151,9 @@ export function drawCells(
                         break;
                     }
                 }
-                if (!found) return;
+                if (!found) {
+                    return;
+                }
             }
 
             const reclip = () => {

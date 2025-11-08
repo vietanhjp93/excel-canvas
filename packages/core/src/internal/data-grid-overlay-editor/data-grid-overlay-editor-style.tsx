@@ -60,9 +60,12 @@ export const DataGridOverlayEditorStyle = styled.div<Props>`
         overflow-x: hidden;
         border-radius: 2px;
         flex-grow: 1;
+        -webkit-overflow-scrolling: touch;
 
         .gdg-growing-entry {
             height: 100%;
+            display: flex;
+            flex-direction: column;
         }
 
         & input.gdg-input {

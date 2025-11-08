@@ -110,28 +110,10 @@ const GridScroller: React.FunctionComponent<ScrollingDataGridProps> = p => {
     // scroll layout issues especially visible when autoRowHeight=true triggers re-renders.
     // We must calculate actual total width from the columns array which includes growOffset.
     let actualTotalWidth = 0;
-    const columnWidthsDebug: Array<{index: number; width: number; growOffset?: number}> = [];
-    for (const [index, c] of columns.entries()) {
+    for (const c of columns) {
         actualTotalWidth += c.width;
-        columnWidthsDebug.push({
-            index,
-            width: c.width,
-            growOffset: (c as any).growOffset
-        });
     }
     const width = actualTotalWidth + Math.max(0, overscrollX ?? 0);
-
-    // DEBUG: Log width calculations
-    // eslint-disable-next-line no-console
-    console.log('[SCROLL-DEBUG] Width calculations:', {
-        nonGrowWidth: _nonGrowWidth,
-        actualTotalWidth,
-        difference: actualTotalWidth - _nonGrowWidth,
-        finalScrollWidth: width,
-        clientWidth,
-        columnCount: columns.length,
-        columnWidths: columnWidthsDebug.slice(0, 5), // First 5 columns
-    });
 
     let height = enableGroups ? headerHeight + groupHeaderHeight : headerHeight;
     if (typeof rowHeight === "number") {
@@ -163,59 +145,28 @@ const GridScroller: React.FunctionComponent<ScrollingDataGridProps> = p => {
             stickyColWidth += columns[i].width;
         }
 
-        // eslint-disable-next-line no-console
-        console.log('[SCROLL-DEBUG] processArgs START:', {
-            scrollX: args.x,
-            scrollWidth: args.width,
-            stickyColWidth,
-            freezeColumns,
-            totalColumns: columns.length,
-        });
-
-        const columnIterationDebug: Array<{col: number; cx: number; colWidth: number; action: string}> = [];
-        for (const [colIndex, c] of columns.entries()) {
+        for (const c of columns) {
             const cx = x - stickyColWidth;
-            let action = '';
 
             if (args.x >= cx + c.width) {
                 x += c.width;
                 cellX++;
                 cellRight++;
-                action = 'skip-before-view';
             } else if (args.x > cx) {
                 x += c.width;
                 if (smoothScrollX) {
                     tx += cx - args.x;
-                    action = 'partial-visible-smooth';
                 } else {
                     cellX++;
-                    action = 'partial-visible-cell-aligned';
                 }
                 cellRight++;
             } else if (args.x + args.width > cx) {
                 x += c.width;
                 cellRight++;
-                action = 'fully-visible';
             } else {
-                action = 'after-view-BREAK';
-                columnIterationDebug.push({col: colIndex, cx, colWidth: c.width, action});
                 break;
             }
-
-            if (colIndex < 10 || action.includes('partial')) {
-                columnIterationDebug.push({col: colIndex, cx, colWidth: c.width, action});
-            }
         }
-
-        // eslint-disable-next-line no-console
-        console.log('[SCROLL-DEBUG] Column iteration:', columnIterationDebug);
-        // eslint-disable-next-line no-console
-        console.log('[SCROLL-DEBUG] processArgs RESULT:', {
-            cellX,
-            cellRight,
-            translateX: tx,
-            visibleColumnsCount: cellRight - cellX,
-        });
 
         let ty = 0;
         let cellY = 0;
