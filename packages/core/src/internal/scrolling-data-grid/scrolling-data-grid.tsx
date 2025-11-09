@@ -99,10 +99,10 @@ const GridScroller: React.FunctionComponent<ScrollingDataGridProps> = p => {
     const { paddingRight, paddingBottom } = experimental ?? {};
 
     const [clientWidth, clientHeight] = clientSize;
-    const last = React.useRef<Rectangle | undefined>();
-    const lastX = React.useRef<number | undefined>();
-    const lastY = React.useRef<number | undefined>();
-    const lastSize = React.useRef<readonly [number, number] | undefined>();
+    const last = React.useRef<Rectangle | undefined>(undefined);
+    const lastX = React.useRef<number | undefined>(undefined);
+    const lastY = React.useRef<number | undefined>(undefined);
+    const lastSize = React.useRef<readonly [number, number] | undefined>(undefined);
 
     // BUG FIX: nonGrowWidth is the total width BEFORE grow distribution,
     // but columns array has already been grown. Using nonGrowWidth creates a mismatch
@@ -127,7 +127,7 @@ const GridScroller: React.FunctionComponent<ScrollingDataGridProps> = p => {
         height += overscrollY;
     }
 
-    const lastArgs = React.useRef<Rectangle & { paddingRight: number }>();
+    const lastArgs = React.useRef<(Rectangle & { paddingRight: number }) | undefined>(undefined);
 
     const processArgs = React.useCallback(() => {
         if (lastArgs.current === undefined) return;

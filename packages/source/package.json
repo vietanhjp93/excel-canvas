@@ -1,6 +1,6 @@
 {
     "name": "excel-canvas-source",
-    "version": "1.1.38",
+    "version": "1.1.40",
     "description": "Useful data source hooks for Excel Canvas",
     "sideEffects": false,
     "type": "module",
@@ -41,7 +41,7 @@
         "canvas"
     ],
     "dependencies": {
-        "excel-canvas": "1.1.38"
+        "excel-canvas": "1.1.40"
     },
     "peerDependencies": {
         "lodash": "^4.17.19",

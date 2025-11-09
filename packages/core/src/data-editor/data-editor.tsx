@@ -848,9 +848,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
     const [mouseState, setMouseState] = React.useState<MouseState>();
     const [rowMarkerEdgeHover, setRowMarkerEdgeHover] = React.useState<RowMarkerEdgeHover>();
-    const lastSent = React.useRef<[number, number]>();
+    const lastSent = React.useRef<[number, number] | undefined>(undefined);
 
-    const prevRowMarkerEdgeHover = React.useRef<RowMarkerEdgeHover | undefined>();
+    const prevRowMarkerEdgeHover = React.useRef<RowMarkerEdgeHover | undefined>(undefined);
     React.useEffect(() => {
         const prev = prevRowMarkerEdgeHover.current;
         const next = rowMarkerEdgeHover;
@@ -1092,8 +1092,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     }, [gridSelectionOuter, rowMarkerOffset]);
     const gridSelection = gridSelectionOuterMangled ?? gridSelectionInner;
 
-    const abortControllerRef = React.useRef() as React.MutableRefObject<AbortController>;
-    if (abortControllerRef.current === undefined) abortControllerRef.current = new AbortController();
+    const abortControllerRef = React.useRef(new AbortController()) as React.MutableRefObject<AbortController>;
 
     React.useEffect(() => () => abortControllerRef?.current.abort(), []);
 
@@ -1708,6 +1707,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 }
             }
 
+            // cellHeights tracked for debugging purposes
+            void cellHeights;
+
             ctx.restore();
 
             return maxHeight;
@@ -2273,8 +2275,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         [columns, columnsIn, hasRowMarkers, trailingRowOptions?.targetColumn]
     );
 
-    const lastSelectedRowRef = React.useRef<number>();
-    const lastSelectedColRef = React.useRef<number>();
+    const lastSelectedRowRef = React.useRef<number | undefined>(undefined);
+    const lastSelectedColRef = React.useRef<number | undefined>(undefined);
 
     const themeForCell = React.useCallback(
         (cell: InnerGridCell, pos: Item): FullTheme => {
@@ -2544,13 +2546,13 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         ]
     );
     const isActivelyDraggingHeader = React.useRef(false);
-    const lastMouseSelectLocation = React.useRef<readonly [number, number]>();
+    const lastMouseSelectLocation = React.useRef<readonly [number, number] | undefined>(undefined);
     const touchDownArgs = React.useRef(visibleRegion);
     const mouseDownData = React.useRef<{
         time: number;
         button: number;
         location: Item;
-    }>();
+    } | undefined>(undefined);
     const handleRowMarkerEdgeMouseDown = React.useCallback(
         (edge: RowMarkerEdgeHover, event: GridMouseCellEventArgs) => {
             setRowMarkerEdgeHover(prev => (edgeHoverEquals(prev, edge) ? prev : edge));
@@ -3223,7 +3225,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         [mapper, rowGroupingSelectionBehavior]
     );
 
-    const hoveredRef = React.useRef<GridMouseEventArgs>();
+    const hoveredRef = React.useRef<GridMouseEventArgs | undefined>(undefined);
     const onItemHoveredImpl = React.useCallback(
         (args: GridMouseEventArgs) => {
             // make sure we still have a button down
@@ -4482,7 +4484,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 group={group}
                 canvasBounds={canvasBounds}
                 onClose={() => setRenameGroup(undefined)}
-                onFinish={newVal => {
+                onFinish={(newVal: string) => {
                     setRenameGroup(undefined);
                     onGroupHeaderRenamed?.(group, newVal);
                 }}

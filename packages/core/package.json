@@ -1,6 +1,6 @@
 {
     "name": "excel-canvas",
-    "version": "1.1.38",
+    "version": "1.1.40",
     "description": "React data grid for beautifully displaying and editing large amounts of data with amazing performance.",
     "sideEffects": [
         "**/*.css"
@@ -63,7 +63,7 @@
     },
     "peerDependencies": {
         "lodash": "^4.17.19",
-        "marked": "^16.0.10",
+        "marked": "^17.0.0",
         "react": "^16.12.0 || 17.x || 18.x || 19.x",
         "react-dom": "^16.12.0 || 17.x || 18.x || 19.x",
         "react-responsive-carousel": "^3.2.7"
