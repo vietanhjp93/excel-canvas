@@ -2010,6 +2010,15 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     let scrollX = 0;
                     let scrollY = 0;
 
+                    // 🎯 Ensure row heights are measured before getBounds calculates position
+                    // getBounds needs accurate heights from cellYOffset to target row to compute Y position
+                    // Without this, unmeasured rows use base height → incorrect position → unwanted scroll
+                    if (autoRowHeight && trueRow !== undefined && trueRow >= 0) {
+                        const start = Math.min(cellYOffset, trueRow);
+                        const end = Math.max(cellYOffset, trueRow) + 1;
+                        measureRowsInRange(start, end);
+                    }
+
                     if (trueCol !== undefined || trueRow !== undefined) {
                         targetRect = grid.getBounds((trueCol ?? 0) + rowMarkerOffset, trueRow ?? 0) ?? targetRect;
                         if (targetRect.width === 0 || targetRect.height === 0) return;
@@ -2137,6 +2146,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             mangledRows,
             lastRowSticky,
             rowHeight,
+            autoRowHeight,
+            cellYOffset,
+            measureRowsInRange,
         ]
     );
 
