@@ -1768,6 +1768,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     // Track previous column configuration to detect REAL changes (not just reference changes)
     const prevColumnsSignature = React.useRef<string>("");
 
+    // State to force re-render when columns change (fixes row height display after resize)
+    const [, forceRender] = React.useState(0);
+
     // Increment version when columns ACTUALLY change (resize, reorder, add, delete)
     // This invalidates all cached row heights, forcing remeasurement with new column widths
     React.useEffect(() => {
@@ -1790,6 +1793,10 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         if (region !== undefined) {
             measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
         }
+
+        // 🎯 Force component re-render to display updated row heights
+        // Without this, grid continues rendering with old heights until user interaction
+        forceRender(prev => prev + 1);
     }, [mangledCols, autoRowHeight, measureRowsInRange, rows]);
 
     // Clear cache when data structure or theme changes
