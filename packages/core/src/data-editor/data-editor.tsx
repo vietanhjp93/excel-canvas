@@ -1768,8 +1768,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     // Track previous column configuration to detect REAL changes (not just reference changes)
     const prevColumnsSignature = React.useRef<string>("");
 
-    // State to force re-render when columns change (fixes row height display after resize)
-    const [, forceRender] = React.useState(0);
+    // State to track column configuration version (used to invalidate effectiveRowHeight memo)
+    const [columnsStateVersion, setColumnsStateVersion] = React.useState(0);
 
     // Increment version when columns ACTUALLY change (resize, reorder, add, delete)
     // This invalidates all cached row heights, forcing remeasurement with new column widths
@@ -1794,9 +1794,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
         }
 
-        // 🎯 Force component re-render to display updated row heights
-        // Without this, grid continues rendering with old heights until user interaction
-        forceRender(prev => prev + 1);
+        // 🎯 Update state version to invalidate effectiveRowHeight memo
+        // This ensures grid uses updated row heights after column resize
+        setColumnsStateVersion(prev => prev + 1);
     }, [mangledCols, autoRowHeight, measureRowsInRange, rows]);
 
     // Clear cache when data structure or theme changes
@@ -1825,7 +1825,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             const rowKey = getRowKey(rowIndex); // 🎯 Use stable row ID for cache key
             return rowHeightsRef.current.get(rowKey)?.height ?? baseRowHeight(rowIndex);
         };
-    }, [autoRowHeight, baseRowHeight, rowHeight, getRowKey]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoRowHeight, baseRowHeight, rowHeight, getRowKey, columnsStateVersion]);
 
     const mangledOnCellsEdited = React.useCallback<NonNullable<typeof onCellsEdited>>(
         (items: readonly EditListItem[]) => {
