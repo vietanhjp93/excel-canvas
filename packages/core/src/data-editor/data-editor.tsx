@@ -2010,17 +2010,53 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     let scrollX = 0;
                     let scrollY = 0;
 
-                    // 🎯 Ensure row heights are measured before getBounds calculates position
-                    // getBounds needs accurate heights from cellYOffset to target row to compute Y position
-                    // Without this, unmeasured rows use base height → incorrect position → unwanted scroll
-                    if (autoRowHeight && trueRow !== undefined && trueRow >= 0) {
-                        const start = Math.min(cellYOffset, trueRow);
-                        const end = Math.max(cellYOffset, trueRow) + 1;
-                        measureRowsInRange(start, end);
+                    // 🎯 DEBUG: Log scroll context
+                    // eslint-disable-next-line no-console
+                    console.log('[scrollTo] Called with:', {
+                        col: trueCol,
+                        row: trueRow,
+                        cellYOffset,
+                        dir,
+                        paddingX,
+                        paddingY,
+                    });
+
+                    // 🎯 Ensure ALL visible rows are measured before getBounds calculates position
+                    // getBounds uses row heights to compute Y position. For accurate calculation, we need
+                    // to measure the entire visible viewport, not just from cellYOffset to target row.
+                    // This prevents position calculation errors that cause unnecessary scroll jumps.
+                    if (autoRowHeight) {
+                        const region = visibleRegionRef.current;
+                        if (region !== undefined) {
+                            // eslint-disable-next-line no-console
+                            console.log('[scrollTo] Visible region:', {
+                                y: region.y,
+                                height: region.height,
+                                range: `${region.y} to ${region.y + region.height}`
+                            });
+                            // Measure entire visible viewport
+                            measureRowsInRange(region.y, Math.min(rows, region.y + region.height + 1));
+                        }
+                        // Also ensure path from cellYOffset to target row is measured
+                        if (trueRow !== undefined && trueRow >= 0) {
+                            const start = Math.min(cellYOffset, trueRow);
+                            const end = Math.max(cellYOffset, trueRow) + 1;
+                            // eslint-disable-next-line no-console
+                            console.log('[scrollTo] Measuring path from cellYOffset to target:', {
+                                cellYOffset,
+                                targetRow: trueRow,
+                                measureRange: `${start} to ${end}`
+                            });
+                            measureRowsInRange(start, end);
+                        }
                     }
 
                     if (trueCol !== undefined || trueRow !== undefined) {
                         targetRect = grid.getBounds((trueCol ?? 0) + rowMarkerOffset, trueRow ?? 0) ?? targetRect;
+                        // eslint-disable-next-line no-console
+                        console.log('[scrollTo] getBounds result:', {
+                            targetRect
+                        });
                         if (targetRect.width === 0 || targetRect.height === 0) return;
                     }
 
@@ -2098,6 +2134,23 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                                 break;
                         }
 
+                        // eslint-disable-next-line no-console
+                        console.log('[scrollTo] Viewport bounds (visible area):', {
+                            scrollBounds,
+                            sLeft,
+                            sRight,
+                            sTop,
+                            sBottom,
+                            viewportWidth: sRight - sLeft,
+                            viewportHeight: sBottom - sTop,
+                        });
+
+                        // eslint-disable-next-line no-console
+                        console.log('[scrollTo] Target cell bounds:', {
+                            bounds,
+                            targetRect,
+                        });
+
                         if (sLeft > bounds.x) {
                             scrollX = bounds.x - sLeft;
                         } else if (sRight < bounds.x + bounds.width) {
@@ -2110,6 +2163,16 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                             scrollY = bounds.y + bounds.height - sBottom;
                         }
 
+                        // eslint-disable-next-line no-console
+                        console.log('[scrollTo] Scroll calculation:', {
+                            scrollX,
+                            scrollY,
+                            sLeftVsBoundsX: { sLeft, boundsX: bounds.x, diff: bounds.x - sLeft },
+                            sRightVsBoundsRight: { sRight, boundsRight: bounds.x + bounds.width, diff: (bounds.x + bounds.width) - sRight },
+                            sTopVsBoundsY: { sTop, boundsY: bounds.y, diff: bounds.y - sTop },
+                            sBottomVsBoundsBottom: { sBottom, boundsBottom: bounds.y + bounds.height, diff: (bounds.y + bounds.height) - sBottom },
+                        });
+
                         if (dir === "vertical" || (typeof col === "number" && col < freezeColumns)) {
                             scrollX = 0;
                         } else if (
@@ -2118,6 +2181,14 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                         ) {
                             scrollY = 0;
                         }
+
+                        // eslint-disable-next-line no-console
+                        console.log('[scrollTo] Final scroll decision:', {
+                            scrollX,
+                            scrollY,
+                            willScroll: scrollX !== 0 || scrollY !== 0,
+                            dir,
+                        });
 
                         if (scrollX !== 0 || scrollY !== 0) {
                             // Remove scaling as scrollTo method is unaffected by transform scale.
@@ -2149,6 +2220,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             autoRowHeight,
             cellYOffset,
             measureRowsInRange,
+            rows,
         ]
     );
 
