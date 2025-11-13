@@ -1818,6 +1818,11 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     }, [rows, mergedTheme, autoRowHeight, measureRowsInRange]);
 
     const effectiveRowHeight = React.useMemo(() => {
+        // eslint-disable-next-line no-console
+        console.log('[effectiveRowHeight] Memo re-created due to dependency change', {
+            autoRowHeight,
+            columnsStateVersion,
+        });
         if (!autoRowHeight) {
             return rowHeight;
         }
@@ -4718,6 +4723,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         (cell: Item) => {
             const [col, row] = cell;
 
+            // eslint-disable-next-line no-console
+            console.log('[onCellFocused] Called with cell:', { col, row, currentSelection: { selCol, selRow } });
+
             if (row === -1) {
                 if (columnSelect !== "none") {
                     setSelectedColumns(CompactSelection.fromSingleSelection(col), undefined, false);
@@ -4726,7 +4734,11 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 return;
             }
 
-            if (selCol === col && selRow === row) return;
+            if (selCol === col && selRow === row) {
+                // eslint-disable-next-line no-console
+                console.log('[onCellFocused] Early return - cell already selected');
+                return;
+            }
             setCurrent(
                 {
                     cell,
@@ -4744,6 +4756,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     const [isFocused, setIsFocused] = React.useState(false);
     const setIsFocusedDebounced = React.useRef(
         debounce((val: boolean) => {
+            // eslint-disable-next-line no-console
+            console.log('[isFocused] State changing to:', val);
             setIsFocused(val);
         }, 5)
     );
