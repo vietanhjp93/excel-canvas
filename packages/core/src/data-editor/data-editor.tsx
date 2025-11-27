@@ -4123,7 +4123,10 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     key: event.key,
                 };
                 onCellActivated?.([col - rowMarkerOffset, row], activationEvent);
-                reselect(event.bounds, activationEvent, event.key);
+                // For single ASCII letters, don't pass initialValue to allow proper IME composition
+                // Users need to re-type the first character, but IME will work correctly
+                const isSingleAsciiLetter = /^[A-Za-z]$/.test(event.key);
+                reselect(event.bounds, activationEvent, isSingleAsciiLetter ? undefined : event.key);
                 event.stopPropagation();
                 event.preventDefault();
             }
