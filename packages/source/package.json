@@ -23,9 +23,9 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/vietanhjp93/glide-data-grid.git"
+        "url": "git+https://github.com/vietanhjp93/excel-canvas.git"
     },
-    "homepage": "https://github.com/vietanhjp93/glide-data-grid",
+    "homepage": "https://github.com/vietanhjp93/excel-canvas",
     "author": "vietanhjp93",
     "license": "MIT",
     "keywords": [

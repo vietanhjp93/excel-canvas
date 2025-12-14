@@ -157,7 +157,7 @@ if [[ "$AUTO_RELEASE" == true ]]; then
     echo ""
     echo -e "${GREEN}✅ Release complete!${NC}"
     echo -e "${YELLOW}GitHub Actions will publish to npm automatically.${NC}"
-    echo -e "${YELLOW}Check: https://github.com/vietanhjp93/glide-data-grid/actions${NC}"
+    echo -e "${YELLOW}Check: https://github.com/vietanhjp93/excel-canvas/actions${NC}"
 else
     echo ""
     echo -e "${YELLOW}Next:${NC}"
