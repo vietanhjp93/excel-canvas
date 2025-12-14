@@ -1,26 +1,5 @@
-# NPM Trusted Publishing with OIDC
-# This workflow publishes packages to npm using OpenID Connect (OIDC) authentication
-# No npm token needed - authentication is handled via GitHub's OIDC provider
-#
-# Prerequisites - Configure trusted publisher on npmjs.com for each package:
-#
-# 1. Go to https://www.npmjs.com/package/excel-canvas/access
-#    - Scroll to "Publishing access" section
-#    - Click "Add trusted publisher"
-#    - Select "GitHub Actions"
-#    - Fill in:
-#      - Owner: vietanhjp93
-#      - Repository: glide-data-grid
-#      - Workflow filename: publish-npm.yml
-#      - Environment: npm-publish (or leave empty)
-#
-# 2. Repeat for:
-#    - https://www.npmjs.com/package/excel-canvas-cells/access
-#    - https://www.npmjs.com/package/excel-canvas-source/access
-#
-# Note: npm CLI v11.5.1+ is required (handled by actions/setup-node@v4)
-
-name: Publish to NPM (OIDC)
+# Publish packages to npm on every push to main/master/add-feature
+name: Publish to NPM
 
 on:
     push:
@@ -28,71 +7,25 @@ on:
             - main
             - master
             - add-feature
-
-    # Allow manual trigger
-    workflow_dispatch:
-
-# OIDC requires id-token: write permission
 permissions:
-    id-token: write
+    id-token: write # Required for OIDC
     contents: read
 
 jobs:
     publish:
         runs-on: ubuntu-latest
-        # environment: npm-publish # Uncomment if you create this environment in GitHub repo settings
-
         steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+            - uses: actions/checkout@v4
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
+            - uses: actions/setup-node@v4
               with:
-                  node-version: 20
+                  node-version: "20"
                   registry-url: "https://registry.npmjs.org"
 
-            - name: Install dependencies
-              run: npm install
-
-            - name: Build all packages
-              run: npm run build
-
-            - name: Install latest npm (required for OIDC trusted publishing)
+            # Ensure npm 11.5.1 or later is installed
+            - name: Update npm
               run: npm install -g npm@latest
-
-            - name: Check npm version
-              run: npm --version
-
-            - name: Publish excel-canvas (core)
-              working-directory: ./packages/core
-              run: |
-                  echo "📦 Publishing excel-canvas..."
-                  npm publish --access public --provenance
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-            - name: Publish excel-canvas-cells
-              working-directory: ./packages/cells
-              run: |
-                  echo "📦 Publishing excel-canvas-cells..."
-                  npm publish --access public --provenance
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-            - name: Publish excel-canvas-source
-              working-directory: ./packages/source
-              run: |
-                  echo "📦 Publishing excel-canvas-source..."
-                  npm publish --access public --provenance
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-            - name: Summary
-              run: |
-                  echo "## 📋 Publish Summary" >> $GITHUB_STEP_SUMMARY
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "✅ Successfully published packages:" >> $GITHUB_STEP_SUMMARY
-                  echo "- [excel-canvas](https://www.npmjs.com/package/excel-canvas)" >> $GITHUB_STEP_SUMMARY
-                  echo "- [excel-canvas-cells](https://www.npmjs.com/package/excel-canvas-cells)" >> $GITHUB_STEP_SUMMARY
-                  echo "- [excel-canvas-source](https://www.npmjs.com/package/excel-canvas-source)" >> $GITHUB_STEP_SUMMARY
+            - run: npm ci
+            - run: npm run build --if-present
+            - run: npm test
+            - run: npm publish
