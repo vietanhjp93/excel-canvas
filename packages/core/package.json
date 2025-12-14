@@ -1,6 +1,6 @@
 {
     "name": "excel-canvas",
-    "version": "1.1.67",
+    "version": "1.1.68",
     "description": "React data grid for beautifully displaying and editing large amounts of data with amazing performance.",
     "sideEffects": [
         "**/*.css"
