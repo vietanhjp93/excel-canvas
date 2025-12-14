@@ -16,6 +16,8 @@ interface Props {
 
     readonly value: MarkdownCell;
 
+    readonly activationKey?: string;
+
     createNode?: (content: string) => DocumentFragment;
 }
 
@@ -29,6 +31,7 @@ export const MarkdownOverlayEditor: React.FunctionComponent<Props> = p => {
         onFinish,
         validatedSelection,
         selectionBehavior,
+        activationKey,
     } = p;
 
     const markdown = value.data;
@@ -53,6 +56,7 @@ export const MarkdownOverlayEditor: React.FunctionComponent<Props> = p => {
                         if (e.key === "Enter") e.stopPropagation();
                     }}
                     onChange={onChange}
+                    activationKey={activationKey}
                 />
                 <div className={`gdg-edit-icon gdg-checkmark-hover ${addLeftPad}`} onClick={() => onFinish(value)}>
                     <Checkmark />

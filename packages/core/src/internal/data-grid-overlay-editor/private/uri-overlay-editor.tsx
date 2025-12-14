@@ -12,10 +12,11 @@ interface Props {
     readonly preview: string;
     readonly validatedSelection?: SelectionRange;
     readonly selectionBehavior?: EditSelectionBehavior;
+    readonly activationKey?: string;
 }
 
 const UriOverlayEditor: React.FunctionComponent<Props> = p => {
-    const { uri, onChange, forceEditMode, readonly, validatedSelection, preview, selectionBehavior } = p;
+    const { uri, onChange, forceEditMode, readonly, validatedSelection, preview, selectionBehavior, activationKey } = p;
 
     const [editMode, setEditMode] = React.useState<boolean>(!readonly && (uri === "" || forceEditMode));
 
@@ -32,6 +33,7 @@ const UriOverlayEditor: React.FunctionComponent<Props> = p => {
                 autoFocus={true}
                 value={uri}
                 onChange={onChange}
+                activationKey={activationKey}
             />
         );
     }

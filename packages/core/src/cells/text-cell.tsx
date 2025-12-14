@@ -50,7 +50,9 @@ export const textCellRenderer: InternalCellRenderer<TextCell> = {
     provideEditor: cell => ({
         disablePadding: cell.allowWrapping !== false,
         editor: p => {
-            const { isHighlighted, onChange, value, validatedSelection, selectionBehavior } = p;
+            const { isHighlighted, onChange, value, validatedSelection, selectionBehavior, activation } = p;
+            // Get the activation key if editor was triggered by keyboard
+            const activationKey = activation?.inputType === "keyboard" ? activation.key : undefined;
             return (
                 <GrowingEntry
                     style={cell.allowWrapping !== false ? { padding: "3px 8.5px" } : undefined}
@@ -62,6 +64,7 @@ export const textCellRenderer: InternalCellRenderer<TextCell> = {
                     value={value.data}
                     validatedSelection={validatedSelection}
                     contentAlign={value.contentAlign}
+                    activationKey={activationKey}
                     onChange={e =>
                         onChange({
                             ...value,

@@ -39,8 +39,9 @@ export const markdownCellRenderer: InternalCellRenderer<MarkdownCell> = {
         data: "",
     }),
     provideEditor: () => p => {
-        const { onChange, value, target, onFinishedEditing, markdownDivCreateNode, forceEditMode, validatedSelection } =
+        const { onChange, value, target, onFinishedEditing, markdownDivCreateNode, forceEditMode, validatedSelection, activation } =
             p;
+        const activationKey = activation?.inputType === "keyboard" ? activation.key : undefined;
         return (
             <MarkdownOverlayEditor
                 onFinish={onFinishedEditing}
@@ -55,6 +56,7 @@ export const markdownCellRenderer: InternalCellRenderer<MarkdownCell> = {
                 }
                 forceEditMode={forceEditMode}
                 createNode={markdownDivCreateNode}
+                activationKey={activationKey}
             />
         );
     },

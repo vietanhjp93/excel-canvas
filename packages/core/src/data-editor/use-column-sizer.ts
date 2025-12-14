@@ -188,6 +188,17 @@ export function useColumnSizer(
             return columns.map((c, colIndex) => {
                 if (isSizedGridColumn(c)) return c;
 
+                // ✅ FIX: Check grow BEFORE selectedData check
+                // When selectedData is undefined (first render), grow columns should still
+                // get small initial width (120px) instead of defaultSize (150px).
+                // This ensures totalWidth < clientWidth so grow distribution works later.
+                if (c.grow !== undefined && c.grow > 0) {
+                    return {
+                        ...c,
+                        width: 120, // Small initial width for growable columns
+                    };
+                }
+
                 if (memoMap.current[c.id] !== undefined) {
                     return {
                         ...c,
@@ -199,15 +210,6 @@ export function useColumnSizer(
                     return {
                         ...c,
                         width: defaultSize,
-                    };
-                }
-
-                // ✅ NEW STRATEGY: If column has grow, use smaller initial width
-                // This ensures totalWidth < clientWidth so grow distribution works
-                if (c.grow !== undefined && c.grow > 0) {
-                    return {
-                        ...c,
-                        width: 120, // Small initial width for growable columns
                     };
                 }
 
@@ -240,9 +242,13 @@ export function useColumnSizer(
             }
         }
 
-        if (totalWidth < clientWidth && distribute.length > 0) {
+        // ✅ FIX: Use fallback width when clientWidth is 0 (first render before ResizeObserver fires)
+        // This ensures grow distribution works even on initial render
+        const effectiveClientWidth = clientWidth > 0 ? clientWidth : (typeof window !== "undefined" ? window.innerWidth * 0.7 : 1200);
+
+        if (totalWidth < effectiveClientWidth && distribute.length > 0) {
             const writeable = [...result];
-            const extra = clientWidth - totalWidth;
+            const extra = effectiveClientWidth - totalWidth;
             let remaining = extra;
 
             for (let di = 0; di < distribute.length; di++) {

@@ -139,7 +139,10 @@ const DataGridOverlayEditor: React.FunctionComponent<DataGridOverlayEditorProps>
                 event.key === "Enter" &&
                 // The shift key is reserved for multi-line editing
                 // to allow inserting new lines without closing the editor.
-                !event.shiftKey
+                !event.shiftKey &&
+                // During IME composition (Japanese/Chinese/Korean input), don't commit on Enter
+                // as that key is used to confirm the composition, not to finish editing
+                !event.nativeEvent.isComposing
             ) {
                 event.stopPropagation();
                 event.preventDefault();

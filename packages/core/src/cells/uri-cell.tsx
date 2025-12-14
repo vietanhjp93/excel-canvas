@@ -150,7 +150,8 @@ export const uriCellRenderer: InternalCellRenderer<UriCell> = {
         data: "",
     }),
     provideEditor: cell => p => {
-        const { onChange, value, forceEditMode, validatedSelection } = p;
+        const { onChange, value, forceEditMode, validatedSelection, activation } = p;
+        const activationKey = activation?.inputType === "keyboard" ? activation.key : undefined;
         return (
             <UriOverlayEditor
                 forceEditMode={
@@ -161,6 +162,7 @@ export const uriCellRenderer: InternalCellRenderer<UriCell> = {
                 preview={value.displayData ?? value.data}
                 validatedSelection={validatedSelection}
                 readonly={value.readonly === true}
+                activationKey={activationKey}
                 onChange={e =>
                     onChange({
                         ...value,

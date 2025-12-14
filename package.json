@@ -1,6 +1,6 @@
 {
     "name": "excel-canvas-workspace",
-    "version": "1.1.58",
+    "version": "1.1.67",
     "scripts": {
         "start": "npm run storybook",
         "version": "./update-version.sh",

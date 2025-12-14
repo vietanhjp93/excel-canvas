@@ -1312,6 +1312,13 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
     const gridRef = React.useRef<DataGridRef | null>(null);
 
+    // Hidden textarea for IME input support (Japanese/Chinese/Korean)
+    // This textarea receives keystrokes directly, allowing IME composition to work properly
+    const hiddenInputRef = React.useRef<HTMLTextAreaElement | null>(null);
+    const isComposingRef = React.useRef(false);
+    const compositionEndTimeRef = React.useRef(0); // Track when composition ended to ignore Enter immediately after
+    const [isImeInputActive, setIsImeInputActive] = React.useState(false);
+
     const focus = React.useCallback((immediate?: boolean) => {
         if (immediate === true) {
             gridRef.current?.focus();
@@ -1842,10 +1849,13 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                           ...x,
                           location: [x.location[0] - rowMarkerOffset, x.location[1]] as const,
                       }));
+
             const r = onCellsEdited?.(mangledItems);
 
             if (r !== true) {
-                for (const i of mangledItems) onCellEdited?.(i.location, i.value);
+                for (const i of mangledItems) {
+                    onCellEdited?.(i.location, i.value);
+                }
             }
 
             if (autoRowHeight) {
@@ -4098,53 +4108,169 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
 
             if (handleFixedKeybindings(event)) return;
 
-            if (gridSelection.current === undefined) return;
+            // Note: editOnType keyboard input is handled by hidden textarea
+            // The textarea is auto-focused when cell is selected (see useEffect)
+            // and forwards keybindings via onHiddenInputKeyDown -> handleFixedKeybindings
+        },
+        [onKeyDownIn, handleFixedKeybindings, rowMarkerOffset]
+    );
+
+    // Handle input from hidden textarea for IME support
+    const onHiddenInputChange = React.useCallback(
+        (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+            // Don't process if we're in IME composition - wait for compositionend
+            if (isComposingRef.current) return;
+
+            const inputValue = e.target.value;
+            if (inputValue === "" || gridSelection.current === undefined) return;
+
             const [col, row] = gridSelection.current.cell;
             const vr = visibleRegionRef.current;
 
-            if (
-                editOnType &&
-                !event.metaKey &&
-                !event.ctrlKey &&
-                gridSelection.current !== undefined &&
-                event.key.length === 1 &&
-                /[\p{L}\p{M}\p{N}\p{S}\p{P}]/u.test(event.key) &&
-                event.bounds !== undefined &&
-                isReadWriteCell(getCellContent([col - rowMarkerOffset, Math.max(0, Math.min(row, rows - 1))]))
-            ) {
-                if (
-                    (!showTrailingBlankRow || row !== rows) &&
-                    (vr.y > row || row > vr.y + vr.height || vr.x > col || col > vr.x + vr.width)
-                ) {
-                    return;
-                }
-                const activationEvent: CellActivatedEventArgs = {
-                    inputType: "keyboard",
-                    key: event.key,
-                };
-                onCellActivated?.([col - rowMarkerOffset, row], activationEvent);
-                // For single ASCII letters, don't pass initialValue to allow proper IME composition
-                // Users need to re-type the first character, but IME will work correctly
-                const isSingleAsciiLetter = /^[A-Za-z]$/.test(event.key);
-                reselect(event.bounds, activationEvent, isSingleAsciiLetter ? undefined : event.key);
-                event.stopPropagation();
-                event.preventDefault();
+            // Check if cell is editable
+            if (!isReadWriteCell(getCellContent([col - rowMarkerOffset, Math.max(0, Math.min(row, rows - 1))]))) {
+                e.target.value = "";
+                return;
             }
+
+            // Check if cell is in visible region
+            if (
+                (!showTrailingBlankRow || row !== rows) &&
+                (vr.y > row || row > vr.y + vr.height || vr.x > col || col > vr.x + vr.width)
+            ) {
+                e.target.value = "";
+                return;
+            }
+
+            const bounds = gridRef.current?.getBounds(col, row);
+            if (bounds === undefined) {
+                e.target.value = "";
+                return;
+            }
+
+            // Clear hidden input
+            e.target.value = "";
+
+            const activationEvent: CellActivatedEventArgs = {
+                inputType: "keyboard",
+                key: inputValue,
+            };
+            onCellActivated?.([col - rowMarkerOffset, row], activationEvent);
+            // Pass the full input value as initialValue - this works because IME composition is complete
+            reselect(bounds, activationEvent, inputValue);
         },
-        [
-            editOnType,
-            onKeyDownIn,
-            handleFixedKeybindings,
-            gridSelection,
-            getCellContent,
-            rowMarkerOffset,
-            rows,
-            showTrailingBlankRow,
-            onCellActivated,
-            reselect,
-        ]
+        [gridSelection, getCellContent, rowMarkerOffset, rows, showTrailingBlankRow, onCellActivated, reselect]
     );
 
+    const onHiddenInputCompositionStart = React.useCallback(() => {
+        isComposingRef.current = true;
+        setIsImeInputActive(true);
+        // Don't open editor here - let composition continue in input
+        // The input is positioned on cell so user can see it
+    }, []);
+
+    const onHiddenInputCompositionEnd = React.useCallback(
+        (_e: React.CompositionEvent<HTMLTextAreaElement>) => {
+            isComposingRef.current = false;
+            // Record when composition ended - the Enter key that confirmed IME
+            // will also fire a keydown event right after, we need to ignore it
+            compositionEndTimeRef.current = Date.now();
+            // Keep textarea visible with composed text - user can:
+            // 1. Continue typing more characters
+            // 2. Press Enter again (after a delay) to commit
+            // 3. Press Escape to cancel
+        },
+        []
+    );
+
+    // Handle keydown on hidden input - forward keybindings to grid, let printable chars through for IME
+    const onHiddenInputKeyDown = React.useCallback(
+        (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+            const inputValue = e.currentTarget.value;
+
+            // During IME composition, don't interfere at all
+            if (isComposingRef.current || e.nativeEvent.isComposing) return;
+
+            // Handle Enter key with content - commit value directly to cell
+            if (e.key === "Enter" && inputValue !== "" && gridSelection.current !== undefined) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Check if this Enter was from confirming IME composition
+                // Use 300ms to ensure IME confirmation Enter is properly ignored
+                // Some IMEs may have slight delays between compositionend and keydown events
+                const timeSinceCompositionEnd = Date.now() - compositionEndTimeRef.current;
+                if (timeSinceCompositionEnd < 300) {
+                    return; // Let user continue typing after IME confirmation
+                }
+
+                const [col, row] = gridSelection.current.cell;
+                const cellPosForContent: Item = [col - rowMarkerOffset, row];
+                const cell = getCellContent(cellPosForContent);
+
+                // Clear textarea and reset state BEFORE moving selection
+                // This prevents race conditions where the new cell might see stale state
+                e.currentTarget.value = "";
+                setIsImeInputActive(false);
+                compositionEndTimeRef.current = 0; // Reset composition timing
+
+                if (isReadWriteCell(cell)) {
+                    const newCell = { ...cell, data: inputValue } as typeof cell;
+                    mangledOnCellsEdited([{ location: [col, row], value: newCell }]);
+                    gridRef.current?.damage([{ cell: [col, row] }]);
+                    updateSelectedCell(col, row + 1, false, false);
+                }
+
+                return;
+            }
+
+            // Handle Escape - cancel input and clear
+            if (e.key === "Escape") {
+                e.preventDefault();
+                e.currentTarget.value = "";
+                setIsImeInputActive(false);
+                return;
+            }
+
+            // When textarea is empty, forward keybindings to grid
+            if (inputValue === "") {
+                // Create a GridKeyEventArgs-like object for handleFixedKeybindings
+                const gridKeyEvent: GridKeyEventArgs = {
+                    key: e.key,
+                    keyCode: e.keyCode,
+                    ctrlKey: e.ctrlKey,
+                    shiftKey: e.shiftKey,
+                    altKey: e.altKey,
+                    metaKey: e.metaKey,
+                    cancel: () => { /* noop */ },
+                    stopPropagation: () => e.stopPropagation(),
+                    preventDefault: () => e.preventDefault(),
+                    bounds: gridSelection.current ? gridRef.current?.getBounds(
+                        gridSelection.current.cell[0],
+                        gridSelection.current.cell[1]
+                    ) : undefined,
+                    location: gridSelection.current?.cell,
+                    rawEvent: undefined,
+                };
+
+                // Let handleFixedKeybindings process this key
+                if (handleFixedKeybindings(gridKeyEvent)) {
+                    e.preventDefault();
+                    return;
+                }
+
+                // Prevent Enter from inserting newline when empty
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            // For printable characters, let them through to textarea for IME support
+            // The textarea will handle input via onChange/onCompositionEnd
+        },
+        [gridSelection, rowMarkerOffset, getCellContent, mangledOnCellsEdited, updateSelectedCell, handleFixedKeybindings]
+    );
     const onContextMenu = React.useCallback(
         (args: GridMouseEventArgs, preventDefault: () => void) => {
             const adjustedCol = args.location[0] - rowMarkerOffset;
@@ -4242,7 +4368,8 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             const selectedRows = gridSelection.rows;
             const focused =
                 scrollRef.current?.contains(document.activeElement) === true ||
-                canvasRef.current?.contains(document.activeElement) === true;
+                canvasRef.current?.contains(document.activeElement) === true ||
+                hiddenInputRef.current === document.activeElement;
 
             let target: Item | undefined;
 
@@ -4373,10 +4500,16 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     const onCopy = React.useCallback(
         async (e?: ClipboardEvent, ignoreFocus?: boolean) => {
             if (!keybindings.copy) return;
+
+            // When overlay editor is open, let browser handle copy for text editing
+            // This allows Cmd+C to copy selected text instead of copying cell content
+            if (overlay !== undefined) return;
+
             const focused =
                 ignoreFocus === true ||
                 scrollRef.current?.contains(document.activeElement) === true ||
-                canvasRef.current?.contains(document.activeElement) === true;
+                canvasRef.current?.contains(document.activeElement) === true ||
+                hiddenInputRef.current === document.activeElement;
 
             const selectedColumns = gridSelection.columns;
             const selectedRows = gridSelection.rows;
@@ -4472,6 +4605,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             scrollRef,
             rows,
             copyHeaders,
+            overlay,
         ]
     );
 
@@ -4480,9 +4614,17 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     const onCut = React.useCallback(
         async (e?: ClipboardEvent) => {
             if (!keybindings.cut) return;
+
+            // When overlay editor is open, let browser handle cut for text editing
+            // This allows Cmd+X to cut selected text instead of cutting cell content
+            if (overlay !== undefined) {
+                return;
+            }
+
             const focused =
                 scrollRef.current?.contains(document.activeElement) === true ||
-                canvasRef.current?.contains(document.activeElement) === true;
+                canvasRef.current?.contains(document.activeElement) === true ||
+                hiddenInputRef.current === document.activeElement;
 
             if (!focused) return;
             await onCopy(e);
@@ -4498,15 +4640,56 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 };
                 const onDeleteResult = onDelete?.(effectiveSelection);
                 if (onDeleteResult === false) return;
-                effectiveSelection = onDeleteResult === true ? effectiveSelection : onDeleteResult;
+                // Only update effectiveSelection if onDelete returned a GridSelection
+                // (not true, false, or undefined)
+                if (onDeleteResult !== true && onDeleteResult !== undefined) {
+                    effectiveSelection = onDeleteResult;
+                }
                 if (effectiveSelection.current === undefined) return;
                 deleteRange(effectiveSelection.current.range);
             }
         },
-        [deleteRange, gridSelection, keybindings.cut, onCopy, scrollRef, onDelete]
+        [deleteRange, gridSelection, keybindings.cut, onCopy, scrollRef, onDelete, overlay]
     );
 
     useEventListener("cut", onCut, safeWindow, false, false);
+
+    // Forward copy/paste/cut events from hidden textarea to grid handlers
+    // These handlers ensure clipboard operations work when textarea is focused
+    const onHiddenInputCopy = React.useCallback(
+        (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+            // If textarea has content (user is editing), let default copy behavior happen
+            if (e.currentTarget.value !== "") return;
+            // Otherwise, call the grid's copy handler directly
+            e.preventDefault();
+            e.stopPropagation(); // Prevent global copy listener from also firing
+            void onCopy(e.nativeEvent);
+        },
+        [onCopy]
+    );
+
+    const onHiddenInputPaste = React.useCallback(
+        (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+            // If textarea is visible (IME active), let paste go to textarea
+            if (isImeInputActive) return;
+            // Otherwise, call the grid's paste handler directly
+            e.preventDefault();
+            void onPasteInternal(e.nativeEvent);
+        },
+        [isImeInputActive, onPasteInternal]
+    );
+
+    const onHiddenInputCut = React.useCallback(
+        (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+            // If textarea has content, let default cut behavior happen
+            if (e.currentTarget.value !== "") return;
+            // Otherwise, call the grid's cut handler directly
+            e.preventDefault();
+            e.stopPropagation(); // Prevent global cut listener from also firing
+            void onCut(e.nativeEvent);
+        },
+        [onCut]
+    );
 
     const onSearchResultsChanged = React.useCallback(
         (results: readonly Item[], navIndex: number) => {
@@ -4790,11 +4973,43 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 "keyboard-select"
             );
         }
-    }, [cellYOffset, gridSelection, mouseState, rowMarkerOffset, setCurrent]);
+
+        // Focus hidden textarea for IME input support when editOnType is enabled
+        // Keybindings are forwarded via onHiddenInputKeyDown -> handleFixedKeybindings
+        if (editOnType && hiddenInputRef.current !== null) {
+            hiddenInputRef.current.focus();
+        }
+    }, [cellYOffset, gridSelection, mouseState, rowMarkerOffset, setCurrent, editOnType]);
 
     const onFocusOut = React.useCallback(() => {
         setIsFocusedDebounced.current(false);
     }, []);
+
+    // Focus hidden textarea when cell is selected and editOnType is enabled
+    // This allows IME composition to work correctly for Japanese/Chinese/Korean input
+    const selectedCell = gridSelection.current?.cell;
+    const selectedCellCol = selectedCell?.[0];
+    const selectedCellRow = selectedCell?.[1];
+
+    // Reset textarea state when cell selection changes
+    // This prevents stale state from affecting the new cell
+    React.useEffect(() => {
+        if (hiddenInputRef.current) {
+            hiddenInputRef.current.value = "";
+        }
+        isComposingRef.current = false;
+        compositionEndTimeRef.current = 0;
+        setIsImeInputActive(false);
+    }, [selectedCellCol, selectedCellRow]);
+
+    React.useEffect(() => {
+        if (editOnType && selectedCell !== undefined && overlay === undefined && isFocused) {
+            const timer = setTimeout(() => {
+                hiddenInputRef.current?.focus();
+            }, 0);
+            return () => clearTimeout(timer);
+        }
+    }, [editOnType, selectedCell, selectedCellCol, selectedCellRow, overlay, isFocused]);
 
     const [idealWidth, idealHeight] = React.useMemo(() => {
         let h: number;
@@ -4932,6 +5147,64 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     getCellRenderer={getCellRenderer}
                     resizeIndicator={resizeIndicator}
                 />
+                {/* IME input overlay for Japanese/Chinese/Korean input support */}
+                {/* This textarea is positioned on the selected cell to show IME composition */}
+                {editOnType && gridSelection.current !== undefined && overlay === undefined && (() => {
+                    const [col, row] = gridSelection.current.cell;
+                    const bounds = gridRef.current?.getBounds(col, row);
+                    const canvasRect = canvasRef.current?.getBoundingClientRect();
+                    if (bounds === undefined || canvasRect === undefined) return null;
+
+                    // Convert from viewport coordinates to container-relative coordinates
+                    // getBounds() returns viewport coordinates (includes canvas position in viewport)
+                    // Since textarea is inside DataEditorContainer which has position: relative,
+                    // we need to subtract canvas's viewport position to get container-relative coords
+                    const left = bounds.x - canvasRect.x;
+                    const top = bounds.y - canvasRect.y;
+
+                    // Only show visible styling when IME composition is active
+                    // Otherwise keep it invisible to avoid visual noise
+                    const isVisible = isImeInputActive;
+
+                    return (
+                        <textarea
+                            ref={hiddenInputRef}
+                            onChange={onHiddenInputChange}
+                            onCompositionStart={onHiddenInputCompositionStart}
+                            onCompositionEnd={onHiddenInputCompositionEnd}
+                            onKeyDown={onHiddenInputKeyDown}
+                            onCopy={onHiddenInputCopy}
+                            onPaste={onHiddenInputPaste}
+                            onCut={onHiddenInputCut}
+                            autoFocus
+                            style={{
+                                position: "absolute",
+                                // Use container-relative coordinates
+                                left,
+                                top,
+                                width: isVisible ? bounds.width : 1,
+                                height: isVisible ? bounds.height : 1,
+                                border: isVisible ? "2px solid " + mergedTheme.accentColor : "none",
+                                background: isVisible ? mergedTheme.bgCell : "transparent",
+                                color: mergedTheme.textDark,
+                                fontSize: mergedTheme.baseFontStyle,
+                                fontFamily: mergedTheme.fontFamily,
+                                padding: isVisible ? "0 8px" : 0,
+                                boxSizing: "border-box",
+                                outline: "none",
+                                resize: "none",
+                                overflow: "hidden",
+                                // Keep opacity 0 but still focusable when not composing
+                                opacity: isVisible ? 1 : 0,
+                                zIndex: 10,
+                                // Only capture pointer events when actively composing
+                                // Otherwise let clicks pass through to grid for double-click etc.
+                                pointerEvents: isVisible ? "auto" : "none",
+                            }}
+                            tabIndex={0}
+                        />
+                    );
+                })()}
                 {renameGroupNode}
                 {overlay !== undefined && (
                     <React.Suspense fallback={null}>
