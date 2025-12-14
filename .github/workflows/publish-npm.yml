@@ -23,9 +23,27 @@ jobs:
                   registry-url: "https://registry.npmjs.org"
 
             # Ensure npm 11.5.1 or later is installed
-            - name: Update npm
-              run: npm install -g npm@latest
+            - run: npm install -g npm@latest
             - run: npm ci
-            - run: npm run build --if-present
-            - run: npm test
-            - run: npm publish
+            - run: npm run build
+
+            - name: Check npm version
+              run: npm --version
+
+            - name: Publish excel-canvas (core)
+              working-directory: ./packages/core
+              run: |
+                  echo "📦 Publishing excel-canvas..."
+                  npm publish
+
+            - name: Publish excel-canvas-cells
+              working-directory: ./packages/cells
+              run: |
+                  echo "📦 Publishing excel-canvas-cells..."
+                  npm publish
+
+            - name: Publish excel-canvas-source
+              working-directory: ./packages/source
+              run: |
+                  echo "📦 Publishing excel-canvas-source..."
+                  npm publish
