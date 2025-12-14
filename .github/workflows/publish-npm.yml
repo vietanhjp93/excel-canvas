@@ -40,7 +40,7 @@ permissions:
 jobs:
     publish:
         runs-on: ubuntu-latest
-        environment: npm-publish # Optional: GitHub environment for review gates
+        # environment: npm-publish # Uncomment if you create this environment in GitHub repo settings
 
         steps:
             - name: Checkout code
