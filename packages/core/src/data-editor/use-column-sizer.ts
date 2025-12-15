@@ -40,10 +40,10 @@ export function measureColumn(
         selectedData === undefined
             ? []
             : selectedData.map(row => {
-                const r = measureCell(ctx, row[colIndex], theme, getCellRenderer);
-                max = Math.max(max, r);
-                return r;
-            });
+                  const r = measureCell(ctx, row[colIndex], theme, getCellRenderer);
+                  max = Math.max(max, r);
+                  return r;
+              });
 
     if (sizes.length > 5 && removeOutliers) {
         max = 0;
@@ -64,7 +64,10 @@ export function measureColumn(
     }
     const currentFont = ctx.font;
     ctx.font = theme.headerFontFull;
-    max = Math.max(max, ctx.measureText(c.title).width + theme.cellHorizontalPadding * 2 + (c.icon === undefined ? 0 : 28));
+    max = Math.max(
+        max,
+        ctx.measureText(c.title).width + theme.cellHorizontalPadding * 2 + (c.icon === undefined ? 0 : 28)
+    );
     ctx.font = currentFont;
     const final = Math.max(Math.ceil(minColumnWidth), Math.min(Math.floor(maxColumnWidth), Math.ceil(max)));
 
@@ -190,12 +193,12 @@ export function useColumnSizer(
 
                 // ✅ FIX: Check grow BEFORE selectedData check
                 // When selectedData is undefined (first render), grow columns should still
-                // get small initial width (120px) instead of defaultSize (150px).
-                // This ensures totalWidth < clientWidth so grow distribution works later.
+                // get MINIMAL initial width to ensure totalWidth < clientWidth so grow distribution works.
+                // Previous: 120px was too large when many columns exist (e.g., 10 × 120 = 1200px >= clientWidth)
                 if (c.grow !== undefined && c.grow > 0) {
                     return {
                         ...c,
-                        width: 120, // Small initial width for growable columns
+                        width: 50, // Minimal initial width for growable columns (will be expanded by grow distribution)
                     };
                 }
 
@@ -244,7 +247,8 @@ export function useColumnSizer(
 
         // ✅ FIX: Use fallback width when clientWidth is 0 (first render before ResizeObserver fires)
         // This ensures grow distribution works even on initial render
-        const effectiveClientWidth = clientWidth > 0 ? clientWidth : (typeof window !== "undefined" ? window.innerWidth * 0.7 : 1200);
+        const effectiveClientWidth =
+            clientWidth > 0 ? clientWidth : typeof window !== "undefined" ? window.innerWidth * 0.7 : 1200;
 
         if (totalWidth < effectiveClientWidth && distribute.length > 0) {
             const writeable = [...result];

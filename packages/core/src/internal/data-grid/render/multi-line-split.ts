@@ -10,11 +10,41 @@ const metrics: Map<string, { count: number; size: number }> = new Map();
 
 const hyperMaps: Map<string, Map<string, number>> = new Map();
 
+// Track average width for fullwidth characters (全角) separately
+// In Japanese, characters are either fullwidth (全角) or halfwidth (半角)
+// All fullwidth chars have the same width, all halfwidth chars have the same width
+const fullwidthAvgSize: Map<string, number> = new Map();
+
 type BreakCallback = (str: string) => readonly number[];
+
+// Check if a character is fullwidth (全角)
+// Fullwidth characters are approximately 2x the width of halfwidth characters
+function isFullwidthChar(char: string): boolean {
+    const code = char.codePointAt(0) ?? 0;
+    return (
+        // CJK characters (always fullwidth)
+        (code >= 0x30_00 && code <= 0x30_3F) || // CJK Punctuation and Symbols
+        (code >= 0x30_40 && code <= 0x30_9F) || // Hiragana
+        (code >= 0x30_A0 && code <= 0x30_FF) || // Katakana
+        (code >= 0x31_00 && code <= 0x31_2F) || // Bopomofo
+        (code >= 0x31_F0 && code <= 0x31_FF) || // Katakana Phonetic Extensions
+        (code >= 0x32_00 && code <= 0x32_FF) || // Enclosed CJK Letters
+        (code >= 0x33_00 && code <= 0x33_FF) || // CJK Compatibility
+        (code >= 0x34_00 && code <= 0x4D_BF) || // CJK Unified Ideographs Extension A
+        (code >= 0x4E_00 && code <= 0x9F_FF) || // CJK Unified Ideographs
+        (code >= 0xF9_00 && code <= 0xFA_FF) || // CJK Compatibility Ideographs
+        (code >= 0xFE_30 && code <= 0xFE_4F) || // CJK Compatibility Forms
+        // Fullwidth ASCII and Punctuation (FF01-FF5E are fullwidth ASCII)
+        (code >= 0xFF_01 && code <= 0xFF_5E) ||
+        // Fullwidth brackets and symbols
+        (code >= 0xFF_5F && code <= 0xFF_60)
+    );
+}
 
 export function clearMultilineCache(): void {
     resultCache.clear();
     hyperMaps.clear();
+    fullwidthAvgSize.clear();
     metrics.clear();
 }
 
@@ -45,15 +75,51 @@ function backProp(
     }
 }
 
-function makeHyperMap(ctx: CanvasRenderingContext2D, avgSize: number): Map<string, number> {
+function makeHyperMap(ctx: CanvasRenderingContext2D, avgSize: number, fontStyle: string): Map<string, number> {
     const result: Map<string, number> = new Map();
-    let total = 0;
-    for (const char of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890,.-+=?") {
+    let latinTotal = 0;
+    let latinCount = 0;
+    let fullwidthTotal = 0;
+    let fullwidthCount = 0;
+
+    // Latin/halfwidth characters (半角)
+    const latinChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890,.-+=?";
+
+    // Fullwidth characters (全角) - just need a few samples since all fullwidth chars have same width
+    // Hiragana sample
+    const hiraganaSample = "あいうえお";
+    // Katakana sample
+    const katakanaSample = "アイウエオ";
+    // Kanji sample
+    const kanjiSample = "日本語漢字";
+    // Fullwidth punctuation
+    const fullwidthPunctuation = "。、「」";
+
+    const fullwidthChars = hiraganaSample + katakanaSample + kanjiSample + fullwidthPunctuation;
+
+    // Measure Latin characters (半角)
+    for (const char of latinChars) {
         const w = ctx.measureText(char).width;
         result.set(char, w);
-        total += w;
+        latinTotal += w;
+        latinCount++;
     }
 
+    // Measure fullwidth characters (全角)
+    for (const char of fullwidthChars) {
+        const w = ctx.measureText(char).width;
+        result.set(char, w);
+        fullwidthTotal += w;
+        fullwidthCount++;
+    }
+
+    // Store fullwidth average for fallback on unmapped fullwidth characters
+    // All fullwidth chars have the same width, so this average is accurate
+    if (fullwidthCount > 0) {
+        fullwidthAvgSize.set(fontStyle, fullwidthTotal / fullwidthCount);
+    }
+
+    const total = latinTotal + fullwidthTotal;
     const avg = total / result.size;
 
     // Artisanal hand-tuned constants that have no real meaning other than they make it work better for most fonts.
@@ -79,14 +145,25 @@ function measureText(ctx: CanvasRenderingContext2D, text: string, fontStyle: str
     if (hyperMode && current !== undefined && current.count > 20_000) {
         let hyperMap = hyperMaps.get(fontStyle);
         if (hyperMap === undefined) {
-            hyperMap = makeHyperMap(ctx, current.size);
+            hyperMap = makeHyperMap(ctx, current.size, fontStyle);
             hyperMaps.set(fontStyle, hyperMap);
         }
 
         if (current.count > 500_000) {
             let final = 0;
+            // Fullwidth chars (全角) are typically 2x the width of halfwidth (半角)
+            const fullwidthFallback = fullwidthAvgSize.get(fontStyle) ?? current.size * 2;
             for (const char of text) {
-                final += hyperMap.get(char) ?? current.size;
+                const cached = hyperMap.get(char);
+                if (cached !== undefined) {
+                    final += cached;
+                } else if (isFullwidthChar(char)) {
+                    // All fullwidth characters have the same width
+                    final += fullwidthFallback;
+                } else {
+                    // Halfwidth characters (including unknown chars)
+                    final += current.size;
+                }
             }
             return final * 1.01; // safety margin
         }
